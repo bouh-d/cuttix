@@ -1,8 +1,9 @@
 """Cuttix CLI — entry point."""
 from __future__ import annotations
 
-import click
 import sys
+
+import click
 
 import cuttix
 from cuttix.config import load_config
@@ -23,6 +24,22 @@ Use ONLY on networks you own or have written authorization to test.
 Unauthorized use is illegal (French Penal Code Art. 323-1 to 323-3).
 
 Type 'accept' to continue: """
+
+
+def _get_interface(ctx: click.Context) -> str:
+    """Resolve the interface from config or auto-detect."""
+    cfg = ctx.obj["config"]
+    iface = cfg.interface
+    if iface and iface != "auto":
+        return iface
+
+    from cuttix.utils.network import get_default_interface
+    detected = get_default_interface()
+    if detected:
+        return detected
+
+    from scapy.all import conf  # type: ignore[import]
+    return conf.iface
 
 
 @click.group()
@@ -52,11 +69,47 @@ def cli(ctx: click.Context, config_path: str | None, log_level: str | None,
 
 
 @cli.command()
+@click.option("--network", "-n", default=None, help="Target CIDR (e.g. 192.168.1.0/24)")
+@click.option("--timeout", "-t", type=float, default=2.0, help="ARP timeout in seconds")
+@click.option("--retries", "-r", type=int, default=2, help="Number of ARP retries")
 @click.pass_context
-def scan(ctx: click.Context) -> None:
+def scan(ctx: click.Context, network: str | None, timeout: float, retries: int) -> None:
     """Scan the local network for hosts."""
-    click.echo("Scanner not yet implemented (Milestone 2)")
-    # TODO: wire up NetworkScanner here
+    from cuttix.core.event_bus import EventBus
+    from cuttix.modules.scanner import NetworkScanner
+
+    iface = _get_interface(ctx)
+    bus = EventBus()
+
+    try:
+        scanner = NetworkScanner(interface=iface, event_bus=bus)
+    except Exception as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Scanning on {scanner.interface}...")
+    if network:
+        click.echo(f"Target: {network}")
+
+    try:
+        hosts = scanner.scan(network=network, timeout=timeout, retries=retries)
+    except Exception as exc:
+        click.echo(f"Scan failed: {exc}", err=True)
+        sys.exit(1)
+
+    if not hosts:
+        click.echo("No hosts found.")
+        return
+
+    click.echo(f"\nFound {len(hosts)} host(s):\n")
+    click.echo(f"{'IP':<18} {'MAC':<20} {'Vendor':<25} {'Hostname'}")
+    click.echo("-" * 80)
+
+    for h in sorted(hosts, key=lambda x: tuple(int(p) for p in x.ip.split("."))):
+        vendor = (h.vendor or "")[:24]
+        hostname = h.hostname or ""
+        gw = " (gateway)" if h.is_gateway else ""
+        click.echo(f"{h.ip:<18} {h.mac:<20} {vendor:<25} {hostname}{gw}")
 
 
 @cli.command()
@@ -66,7 +119,61 @@ def scan(ctx: click.Context) -> None:
 @click.pass_context
 def cut(ctx: click.Context, target_ip: str, timeout: int) -> None:
     """Cut a host's network access via ARP spoofing."""
-    click.echo("ARP Control not yet implemented (Milestone 2)")
+    from cuttix.core.audit_log import AuditLog
+    from cuttix.core.event_bus import EventBus
+    from cuttix.db.database import Database
+    from cuttix.modules.arp_control import ARPController
+    from cuttix.utils.validators import is_valid_ip
+
+    if not is_valid_ip(target_ip):
+        click.echo(f"Invalid IP: {target_ip}", err=True)
+        sys.exit(1)
+
+    # disclaimer check
+    db = Database()
+    db.connect()
+
+    if not db.is_disclaimer_accepted():
+        click.echo(DISCLAIMER, nl=False)
+        resp = input()
+        if resp.strip().lower() != "accept":
+            click.echo("Aborted.")
+            sys.exit(0)
+        db.accept_disclaimer()
+
+    iface = _get_interface(ctx)
+    bus = EventBus()
+    audit = AuditLog()
+
+    try:
+        ctl = ARPController(
+            interface=iface,
+            event_bus=bus,
+            audit_log=audit,
+        )
+    except Exception as exc:
+        click.echo(f"Init error: {exc}", err=True)
+        sys.exit(1)
+
+    try:
+        ctl.cut_access(target_ip, auto_restore_minutes=timeout)
+    except Exception as exc:
+        click.echo(f"Cut failed: {exc}", err=True)
+        sys.exit(1)
+
+    if timeout:
+        click.echo(f"Cut {target_ip} — auto-restore in {timeout} min")
+    else:
+        click.echo(f"Cut {target_ip} — use 'cuttix restore {target_ip}' to undo")
+
+    # keep alive so the spoof loop continues
+    click.echo("Press Ctrl+C to restore and exit.")
+    try:
+        while True:
+            import time
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass  # signal handler takes care of restore
 
 
 @cli.command()
@@ -74,7 +181,32 @@ def cut(ctx: click.Context, target_ip: str, timeout: int) -> None:
 @click.pass_context
 def restore(ctx: click.Context, target_ip: str) -> None:
     """Restore a host's network access."""
-    click.echo("ARP Control not yet implemented (Milestone 2)")
+    from cuttix.core.audit_log import AuditLog
+    from cuttix.core.event_bus import EventBus
+    from cuttix.modules.arp_control import ARPController
+    from cuttix.utils.validators import is_valid_ip
+
+    if not is_valid_ip(target_ip):
+        click.echo(f"Invalid IP: {target_ip}", err=True)
+        sys.exit(1)
+
+    iface = _get_interface(ctx)
+    bus = EventBus()
+    audit = AuditLog()
+
+    try:
+        # the constructor recovers orphaned state automatically
+        ctl = ARPController(
+            interface=iface,
+            event_bus=bus,
+            audit_log=audit,
+        )
+        ctl.restore_access(target_ip)
+    except Exception as exc:
+        click.echo(f"Restore failed: {exc}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Restored {target_ip}")
 
 
 @cli.command()
@@ -116,10 +248,21 @@ def report(ctx: click.Context, fmt: str, output: str | None) -> None:
 @click.pass_context
 def status(ctx: click.Context) -> None:
     """Show current cuttix status."""
+    from cuttix.modules.arp_state import ARPStateFile
+
     click.echo(BANNER)
     click.echo(f"Version: {cuttix.__version__}")
+
+    state = ARPStateFile()
+    entries = state.load()
+    if entries:
+        click.echo(f"Active spoofs: {len(entries)}")
+        for e in entries:
+            click.echo(f"  {e.target_ip} ({e.target_mac}) since {e.started_at}")
+    else:
+        click.echo("Active spoofs: 0")
+
     click.echo("Status:  idle")
-    # TODO: show active spoof count, scan results, etc.
 
 
 def main() -> None:
