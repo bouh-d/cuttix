@@ -212,18 +212,123 @@ def restore(ctx: click.Context, target_ip: str) -> None:
 @cli.command()
 @click.argument("target_ip")
 @click.option("--top", type=int, default=100, help="Scan top N ports")
+@click.option("--ports", "-p", "port_spec", default=None,
+              help="Port spec: 80,443 or 1-1024 or profile:web")
+@click.option("--technique", type=click.Choice(["connect", "syn"]),
+              default="connect", help="Scan technique")
+@click.option("--workers", "-w", type=int, default=20, help="Concurrent threads")
+@click.option("--rate", type=int, default=0, help="Max ports/sec (0 = unlimited)")
 @click.pass_context
-def ports(ctx: click.Context, target_ip: str, top: int) -> None:
+def ports(ctx: click.Context, target_ip: str, top: int, port_spec: str | None,
+          technique: str, workers: int, rate: int) -> None:
     """Scan ports on a target host."""
-    click.echo("Port Scanner not yet implemented (Milestone 3)")
+    from cuttix.core.event_bus import EventBus
+    from cuttix.modules.port_scanner import TCPPortScanner, get_profile_ports
+    from cuttix.utils.validators import is_valid_ip, parse_port_range
+
+    if not is_valid_ip(target_ip):
+        click.echo(f"Invalid IP: {target_ip}", err=True)
+        sys.exit(1)
+
+    cfg = ctx.obj["config"]
+    bus = EventBus()
+    scanner = TCPPortScanner(
+        event_bus=bus,
+        max_workers=workers,
+        timeout=cfg.port_scanner.timeout_per_port,
+        rate_limit=rate,
+    )
+
+    port_list = None
+    if port_spec:
+        if port_spec.startswith("profile:"):
+            profile = port_spec.split(":", 1)[1]
+            port_list = get_profile_ports(profile)
+            if not port_list:
+                click.echo(f"Unknown profile: {profile}", err=True)
+                sys.exit(1)
+            click.echo(f"Profile '{profile}': {len(port_list)} ports")
+        else:
+            try:
+                port_list = parse_port_range(port_spec)
+            except ValueError as exc:
+                click.echo(f"Bad port spec: {exc}", err=True)
+                sys.exit(1)
+
+    click.echo(f"Scanning {target_ip} ({technique})...")
+    try:
+        if port_list:
+            result = scanner.scan_host(target_ip, ports=port_list, technique=technique)
+        else:
+            result = scanner.scan_top_ports(target_ip, top_n=top)
+    except Exception as exc:
+        click.echo(f"Scan failed: {exc}", err=True)
+        sys.exit(1)
+
+    open_ports = result.open_ports
+    if not open_ports:
+        click.echo(f"No open ports found on {target_ip}")
+        return
+
+    click.echo(f"\n{len(open_ports)} open port(s) on {target_ip}:\n")
+    click.echo(f"{'PORT':<10} {'STATE':<10} {'SERVICE':<15} {'BANNER'}")
+    click.echo("-" * 70)
+
+    for p in open_ports:
+        svc = p.service or ""
+        banner = (p.banner or "")[:40]
+        click.echo(f"{p.port:<10} {p.state:<10} {svc:<15} {banner}")
 
 
 @cli.command()
 @click.option("--filter", "bpf_filter", default="", help="BPF filter string")
+@click.option("--count", "-c", type=int, default=0, help="Stop after N packets (0 = unlimited)")
 @click.pass_context
-def capture(ctx: click.Context, bpf_filter: str) -> None:
+def capture(ctx: click.Context, bpf_filter: str, count: int) -> None:
     """Capture network packets."""
-    click.echo("Packet Capture not yet implemented (Milestone 3)")
+    from cuttix.core.event_bus import EventBus
+    from cuttix.modules.packet_capture import LiveCapture
+
+    iface = _get_interface(ctx)
+    bus = EventBus()
+
+    cap = LiveCapture(interface=iface, event_bus=bus)
+
+    pkt_count = [0]
+
+    def on_packet(pkt):
+        pkt_count[0] += 1
+        src = pkt.src_ip or pkt.src_mac or "?"
+        dst = pkt.dst_ip or pkt.dst_mac or "?"
+        click.echo(
+            f"{pkt.timestamp:%H:%M:%S}  {pkt.protocol:<6} "
+            f"{src} → {dst}  {pkt.info}"
+        )
+        if count > 0 and pkt_count[0] >= count:
+            cap.stop()
+
+    try:
+        cap.start(bpf_filter=bpf_filter, callback=on_packet)
+    except RuntimeError as exc:
+        click.echo(f"Capture failed: {exc}", err=True)
+        sys.exit(1)
+
+    click.echo(f"Capturing on {iface} ({cap.backend})")
+    if bpf_filter:
+        click.echo(f"Filter: {bpf_filter}")
+    click.echo("Press Ctrl+C to stop.\n")
+
+    try:
+        while cap.is_running():
+            import time
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        cap.stop()
+
+    stats = cap.stats.snapshot()
+    click.echo(f"\n{stats['total_packets']} packets captured in {stats['elapsed_seconds']}s")
 
 
 @cli.command()
@@ -257,17 +362,4 @@ def status(ctx: click.Context) -> None:
     entries = state.load()
     if entries:
         click.echo(f"Active spoofs: {len(entries)}")
-        for e in entries:
-            click.echo(f"  {e.target_ip} ({e.target_mac}) since {e.started_at}")
-    else:
-        click.echo("Active spoofs: 0")
-
-    click.echo("Status:  idle")
-
-
-def main() -> None:
-    cli()
-
-
-if __name__ == "__main__":
-    main()
+  
