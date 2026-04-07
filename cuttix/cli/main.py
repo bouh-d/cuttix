@@ -332,10 +332,75 @@ def capture(ctx: click.Context, bpf_filter: str, count: int) -> None:
 
 
 @cli.command()
+@click.option("--network", "-n", default=None, help="Network CIDR to monitor")
+@click.option("--interval", type=int, default=30, help="Rescan interval in seconds")
+@click.option("--duration", type=int, default=0, help="Stop after N seconds (0 = forever)")
 @click.pass_context
-def watch(ctx: click.Context) -> None:
-    """Start IDS monitoring."""
-    click.echo("IDS not yet implemented (Milestone 4)")
+def watch(ctx: click.Context, network: str | None, interval: int, duration: int) -> None:
+    """Start IDS monitoring — periodic ARP scans + alerts."""
+    import signal
+    import time as _time
+
+    from cuttix.core.event_bus import EventBus, Event, EventType
+    from cuttix.modules.scanner import NetworkScanner
+    from cuttix.modules.ids import NetworkIDS
+
+    cfg = ctx.obj["config"]
+    iface = _get_interface(ctx)
+    bus = EventBus()
+
+    try:
+        scanner = NetworkScanner(interface=iface, event_bus=bus)
+    except Exception as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    ids = NetworkIDS(event_bus=bus, config=cfg.ids)
+
+    # print alerts as they come in
+    def _on_alert(evt: Event) -> None:
+        alert = evt.data
+        click.echo(click.style(
+            f"[{alert.severity.value.upper()}] {alert.alert_type.name}: {alert.description}",
+            fg="red" if alert.severity.value in ("high", "critical") else "yellow",
+        ))
+
+    for et in (EventType.ARP_SPOOF_DETECTED, EventType.NEW_DEVICE,
+               EventType.ROGUE_DHCP, EventType.PORT_SCAN_DETECTED,
+               EventType.MAC_FLOODING):
+        bus.subscribe(et, _on_alert, "cli.watch")
+
+    ids.start()
+    click.echo(f"Watching on {scanner.interface} (interval={interval}s, Ctrl-C to stop)")
+
+    stop = {"flag": False}
+    def _stop(*_: object) -> None:
+        stop["flag"] = True
+    signal.signal(signal.SIGINT, _stop)
+    try:
+        signal.signal(signal.SIGTERM, _stop)
+    except (AttributeError, ValueError):
+        pass
+
+    started = _time.time()
+    try:
+        while not stop["flag"]:
+            try:
+                hosts = scanner.scan(network=network)
+                click.echo(f"  scan: {len(hosts)} hosts")
+            except Exception as exc:
+                click.echo(f"  scan failed: {exc}", err=True)
+
+            if duration and _time.time() - started >= duration:
+                break
+            for _ in range(interval * 10):
+                if stop["flag"]:
+                    break
+                _time.sleep(0.1)
+    finally:
+        ids.stop()
+        alerts = ids.get_alerts()
+        click.echo(f"\nStopped. {len(alerts)} alerts raised.")
 
 
 @cli.command()
@@ -346,7 +411,28 @@ def watch(ctx: click.Context) -> None:
 @click.pass_context
 def report(ctx: click.Context, fmt: str, output: str | None) -> None:
     """Generate a network audit report."""
-    click.echo("Report Generator not yet implemented (Milestone 4)")
+    from cuttix.db.database import Database
+    from cuttix.modules.report import AuditReportGenerator
+
+    db = Database()
+    db.connect()
+    try:
+        gen = AuditReportGenerator(db)
+        if fmt not in gen.get_supported_formats():
+            click.echo(f"Format '{fmt}' unavailable. Got: {gen.get_supported_formats()}", err=True)
+            if fmt == "pdf":
+                click.echo("  → install reportlab: pip install reportlab", err=True)
+            sys.exit(1)
+
+        result = gen.generate(fmt=fmt, output_path=output)
+        if fmt == "pdf":
+            click.echo(f"PDF report written to {result}")
+        elif output:
+            click.echo(f"Report written to {output}")
+        else:
+            click.echo(result)
+    finally:
+        db.close()
 
 
 @cli.command()
