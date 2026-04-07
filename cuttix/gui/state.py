@@ -18,8 +18,10 @@ from typing import Any
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from cuttix.core.event_bus import Event, EventBus, EventType
+from cuttix.gui.bandwidth import BandwidthAggregator
 from cuttix.models.alert import Alert
 from cuttix.models.host import Host
+from cuttix.models.packet import PacketInfo
 
 
 @dataclass
@@ -61,6 +63,7 @@ class StateStore(QObject):
     error_raised = pyqtSignal(str, str)  # (title, message)
 
     MAX_ALERTS = 500
+    MAX_PACKETS = 2000
 
     def __init__(self, bus: EventBus, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -70,8 +73,10 @@ class StateStore(QObject):
         # in-memory state
         self._hosts: dict[str, Host] = {}      # mac → Host
         self._alerts: deque[Alert] = deque(maxlen=self.MAX_ALERTS)
+        self._packets: deque[PacketInfo] = deque(maxlen=self.MAX_PACKETS)
         self._spoofed: set[str] = set()        # set of IPs
         self._stats = Stats()
+        self._bandwidth = BandwidthAggregator()
 
         self._subscribed = False
 
@@ -137,6 +142,17 @@ class StateStore(QObject):
     def is_spoofed(self, ip: str) -> bool:
         with self._lock:
             return ip in self._spoofed
+
+    def get_recent_packets(self, limit: int | None = None) -> list[PacketInfo]:
+        with self._lock:
+            lst = list(self._packets)
+        if limit is None:
+            return lst
+        return lst[-limit:]
+
+    @property
+    def bandwidth(self) -> BandwidthAggregator:
+        return self._bandwidth
 
     # -- direct mutations (used by widgets or workers) --
 
@@ -221,9 +237,13 @@ class StateStore(QObject):
         self.stats_changed.emit(self.get_stats())
 
     def _on_packet_captured(self, evt: Event) -> None:
+        pkt = evt.data
         with self._lock:
             self._stats.packets_total += 1
-        self.packet_captured.emit(evt.data)
+            if isinstance(pkt, PacketInfo):
+                self._packets.append(pkt)
+                self._bandwidth.add_packet(pkt)
+        self.packet_captured.emit(pkt)
 
     def _on_scan_complete(self, evt: Event) -> None:
         data = evt.data if isinstance(evt.data, dict) else {}

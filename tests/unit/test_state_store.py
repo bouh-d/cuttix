@@ -210,3 +210,24 @@ class TestLifecycle:
                 source="capture",
             ))
         assert store.get_stats().packets_total == 5
+
+    def test_packet_buffer_and_bandwidth(
+        self, store: StateStore, bus: EventBus
+    ) -> None:
+        from cuttix.models.packet import PacketInfo
+        from datetime import datetime
+        for i in range(3):
+            bus.publish(Event(
+                type=EventType.PACKET_CAPTURED,
+                data=PacketInfo(
+                    timestamp=datetime.now(),
+                    src_ip="10.0.0.1",
+                    dst_ip="10.0.0.2",
+                    length=100,
+                ),
+                source="capture",
+            ))
+        recent = store.get_recent_packets()
+        assert len(recent) == 3
+        assert store.bandwidth.total_bytes("10.0.0.1") > 0
+        assert store.bandwidth.total_bytes("10.0.0.2") > 0

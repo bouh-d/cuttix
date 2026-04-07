@@ -8,11 +8,13 @@ from typing import Any
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
+from pathlib import Path
+
 from cuttix.config import load_config
 from cuttix.core.event_bus import EventBus
 from cuttix.gui.main_window import MainWindow
 from cuttix.gui.state import StateStore
-from cuttix.gui.style import DARK_QSS
+from cuttix.gui.themes import ThemeManager
 from cuttix.utils.logger import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,10 @@ def main(argv: list[str] | None = None) -> int:
 
     app = QApplication(argv)
     app.setApplicationName("Cuttix")
-    app.setStyleSheet(DARK_QSS)
+
+    theme_pref_path = Path.home() / ".config" / "cuttix" / "ui_state.json"
+    theme = ThemeManager(persist_path=theme_pref_path, initial=config.gui.theme)
+    app.setStyleSheet(theme.stylesheet())
 
     bus = EventBus()
     store = StateStore(bus)
@@ -72,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
     arp_ctrl = _build_arp_controller(iface, bus)
     ids = _build_ids(bus, config)
 
-    window = MainWindow(store, arp_ctrl)
+    window = MainWindow(store, arp_ctrl, theme_manager=theme)
     window.show()
 
     # run an initial scan 500ms after launch so the dashboard populates
