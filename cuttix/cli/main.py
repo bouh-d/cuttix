@@ -437,6 +437,20 @@ def report(ctx: click.Context, fmt: str, output: str | None) -> None:
 
 @cli.command()
 @click.pass_context
+def gui(ctx: click.Context) -> None:
+    """Launch the Cuttix desktop GUI."""
+    try:
+        from cuttix.gui import run
+    except ImportError as exc:
+        click.echo(f"GUI dependencies missing: {exc}", err=True)
+        click.echo("Install with: pip install 'cuttix[gui]'", err=True)
+        sys.exit(1)
+
+    sys.exit(run(sys.argv))
+
+
+@cli.command()
+@click.pass_context
 def status(ctx: click.Context) -> None:
     """Show current cuttix status."""
     from cuttix.modules.arp_state import ARPStateFile
