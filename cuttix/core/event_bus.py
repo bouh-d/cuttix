@@ -4,9 +4,10 @@ import logging
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,7 @@ class EventBus:
         self._lock = threading.Lock()
         self._stats: dict[EventType, int] = defaultdict(int)
 
-    def subscribe(self, event_type: EventType, handler: EventHandler,
-                  subscriber: str) -> None:
+    def subscribe(self, event_type: EventType, handler: EventHandler, subscriber: str) -> None:
         with self._lock:
             self._handlers[event_type].append((subscriber, handler))
             logger.debug("EventBus: %s subscribed to %s", subscriber, event_type.name)
@@ -79,8 +79,7 @@ class EventBus:
     def unsubscribe(self, event_type: EventType, subscriber: str) -> None:
         with self._lock:
             self._handlers[event_type] = [
-                (name, h) for name, h in self._handlers[event_type]
-                if name != subscriber
+                (name, h) for name, h in self._handlers[event_type] if name != subscriber
             ]
 
     def unsubscribe_all(self, subscriber: str) -> None:
@@ -88,8 +87,7 @@ class EventBus:
         with self._lock:
             for evt_type in self._handlers:
                 self._handlers[evt_type] = [
-                    (name, h) for name, h in self._handlers[evt_type]
-                    if name != subscriber
+                    (name, h) for name, h in self._handlers[evt_type] if name != subscriber
                 ]
 
     def publish(self, event: Event) -> None:
@@ -109,7 +107,8 @@ class EventBus:
             except Exception:
                 logger.exception(
                     "EventBus: handler '%s' crashed on %s — other handlers unaffected",
-                    subscriber, event.type.name,
+                    subscriber,
+                    event.type.name,
                 )
                 # emit MODULE_ERROR but don't recurse
                 if event.type != EventType.MODULE_ERROR:
@@ -119,7 +118,10 @@ class EventBus:
                 if elapsed > self.SLOW_HANDLER_MS:
                     logger.warning(
                         "EventBus: slow handler '%s' took %.1fms on %s (limit: %dms)",
-                        subscriber, elapsed, event.type.name, self.SLOW_HANDLER_MS,
+                        subscriber,
+                        elapsed,
+                        event.type.name,
+                        self.SLOW_HANDLER_MS,
                     )
 
     def get_stats(self) -> dict[str, int]:

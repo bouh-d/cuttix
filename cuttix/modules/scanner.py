@@ -1,16 +1,17 @@
 """ARP scanner — host discovery on the local network."""
+
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import logging
 import socket
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any
 
-from scapy.all import ARP, Ether, srp, get_if_list, get_if_addr, conf  # type: ignore[import]
+from scapy.all import ARP, Ether, conf, get_if_addr, get_if_list, srp  # type: ignore[import]
 
 from cuttix.core.event_bus import Event, EventBus, EventType
 from cuttix.core.exceptions import (
@@ -68,7 +69,7 @@ class NetworkScanner:
         discovered: dict[str, Host] = {}
         gateway_ip = get_gateway_ip()
 
-        for attempt in range(retries):
+        for _attempt in range(retries):
             results = self._send_arp(cidr, timeout)
             for ip, mac in results:
                 if mac in discovered:
@@ -112,11 +113,13 @@ class NetworkScanner:
                     logger.debug("DB upsert failed for %s", h.mac, exc_info=True)
 
         if self._bus:
-            self._bus.publish(Event(
-                type=EventType.SCAN_CYCLE_COMPLETE,
-                data={"count": len(discovered)},
-                source="scanner",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.SCAN_CYCLE_COMPLETE,
+                    data={"count": len(discovered)},
+                    source="scanner",
+                )
+            )
 
         return list(discovered.values())
 
@@ -176,14 +179,10 @@ class NetworkScanner:
                 verbose=False,
                 retry=0,
             )
-        except PermissionError:
-            raise PrivilegeError(
-                "Root/admin required for ARP scan. Run with sudo."
-            )
+        except PermissionError as exc:
+            raise PrivilegeError("Root/admin required for ARP scan. Run with sudo.") from exc
         except OSError as exc:
-            raise InterfaceError(
-                f"Interface {self._iface} not usable: {exc}"
-            ) from exc
+            raise InterfaceError(f"Interface {self._iface} not usable: {exc}") from exc
 
         results = []
         for _, rcv in ans:
@@ -206,37 +205,41 @@ class NetworkScanner:
         # get spoofed hosts so we don't emit false HOST_LOST
         spoofed_ips: set[str] = set()
         if self._arp_ctl:
-            try:
+            with contextlib.suppress(Exception):
                 spoofed_ips = set(self._arp_ctl.get_spoofed().keys())
-            except Exception:
-                pass
 
         for mac in new_macs - old_macs:
-            self._bus.publish(Event(
-                type=EventType.HOST_DISCOVERED,
-                data=new[mac],
-                source="scanner",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.HOST_DISCOVERED,
+                    data=new[mac],
+                    source="scanner",
+                )
+            )
 
         for mac in old_macs - new_macs:
             host = old[mac]
             if host.ip in spoofed_ips:
                 continue  # we're spoofing it, don't cry about it
-            self._bus.publish(Event(
-                type=EventType.HOST_LOST,
-                data=host,
-                source="scanner",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.HOST_LOST,
+                    data=host,
+                    source="scanner",
+                )
+            )
 
         # IP or vendor changed for existing MAC
         for mac in old_macs & new_macs:
             o, n = old[mac], new[mac]
             if o.ip != n.ip or o.vendor != n.vendor:
-                self._bus.publish(Event(
-                    type=EventType.HOST_UPDATED,
-                    data=n,
-                    source="scanner",
-                ))
+                self._bus.publish(
+                    Event(
+                        type=EventType.HOST_UPDATED,
+                        data=n,
+                        source="scanner",
+                    )
+                )
 
     def _check_arp_conflicts(self, hosts: dict[str, Host]) -> None:
         """Detect multiple MACs claiming the same IP."""
@@ -249,11 +252,13 @@ class NetworkScanner:
 
         for ip, macs in ip_to_macs.items():
             if len(macs) > 1:
-                self._bus.publish(Event(
-                    type=EventType.ARP_CONFLICT,
-                    data={"ip": ip, "macs": macs},
-                    source="scanner",
-                ))
+                self._bus.publish(
+                    Event(
+                        type=EventType.ARP_CONFLICT,
+                        data={"ip": ip, "macs": macs},
+                        source="scanner",
+                    )
+                )
 
     def _resolve_hostnames(self, hosts: list[Host]) -> None:
         """Batch reverse DNS, best-effort."""
@@ -268,26 +273,21 @@ class NetworkScanner:
         with ThreadPoolExecutor(max_workers=10) as pool:
             futs = [pool.submit(_rdns, h) for h in hosts]
             for f in as_completed(futs, timeout=5):
-                try:
+                with contextlib.suppress(Exception):
                     f.result()
-                except Exception:
-                    pass
 
     def _validate_interface(self) -> None:
         available = get_if_list()
         if self._iface not in available:
             raise InterfaceError(
-                f"Interface '{self._iface}' not found. "
-                f"Available: {', '.join(available)}"
+                f"Interface '{self._iface}' not found. Available: {', '.join(available)}"
             )
 
     def _guess_cidr(self) -> str:
         """Get the CIDR for the scanner's interface."""
         ip = get_if_addr(self._iface)
-        if not ip or ip == "0.0.0.0":
-            raise InterfaceError(
-                f"No IP address on interface {self._iface}"
-            )
+        if not ip or ip == "0.0.0.0":  # noqa: S104 - string comparison, not a bind
+            raise InterfaceError(f"No IP address on interface {self._iface}")
         # assume /24 — covers 99% of home/office LANs
         net = ipaddress.IPv4Network(f"{ip}/24", strict=False)
         return str(net)
@@ -300,6 +300,4 @@ class NetworkScanner:
             raise InvalidNetworkError(f"Bad network: {cidr}") from exc
 
         if net.prefixlen < 16:
-            raise SecurityError(
-                f"Refusing to scan /{net.prefixlen} — too wide (max /16)"
-            )
+            raise SecurityError(f"Refusing to scan /{net.prefixlen} — too wide (max /16)")

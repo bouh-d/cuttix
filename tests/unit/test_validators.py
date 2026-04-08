@@ -3,8 +3,12 @@ from __future__ import annotations
 import pytest
 
 from cuttix.utils.validators import (
-    is_valid_ip, is_valid_cidr, is_valid_mac,
-    normalize_mac, is_valid_port, parse_port_range,
+    is_valid_cidr,
+    is_valid_ip,
+    is_valid_mac,
+    is_valid_port,
+    normalize_mac,
+    parse_port_range,
 )
 
 

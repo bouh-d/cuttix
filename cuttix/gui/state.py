@@ -8,11 +8,12 @@ without worrying about thread affinity.
 The store holds host inventory, alerts, packet counters, and active
 spoof targets. Widgets connect to signals and pull snapshots as needed.
 """
+
 from __future__ import annotations
 
 import threading
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -38,26 +39,26 @@ class StateStore(QObject):
     """Observable store fed by the EventBus."""
 
     # host table updates
-    host_added = pyqtSignal(object)      # Host
-    host_updated = pyqtSignal(object)    # Host
-    host_removed = pyqtSignal(str)       # mac
+    host_added = pyqtSignal(object)  # Host
+    host_updated = pyqtSignal(object)  # Host
+    host_removed = pyqtSignal(str)  # mac
 
     # alert feed
-    alert_raised = pyqtSignal(object)    # Alert
+    alert_raised = pyqtSignal(object)  # Alert
 
     # ARP control status
-    host_cut = pyqtSignal(str)           # ip
-    host_restored = pyqtSignal(str)      # ip
+    host_cut = pyqtSignal(str)  # ip
+    host_restored = pyqtSignal(str)  # ip
 
     # packets (high-volume — widgets should throttle)
     packet_captured = pyqtSignal(object)
 
     # dashboard stats (emitted whenever they change)
-    stats_changed = pyqtSignal(object)   # Stats
+    stats_changed = pyqtSignal(object)  # Stats
 
     # scanner lifecycle
     scan_started = pyqtSignal()
-    scan_finished = pyqtSignal(int)      # host count
+    scan_finished = pyqtSignal(int)  # host count
 
     # generic errors / notifications
     error_raised = pyqtSignal(str, str)  # (title, message)
@@ -71,10 +72,10 @@ class StateStore(QObject):
         self._lock = threading.RLock()
 
         # in-memory state
-        self._hosts: dict[str, Host] = {}      # mac → Host
+        self._hosts: dict[str, Host] = {}  # mac → Host
         self._alerts: deque[Alert] = deque(maxlen=self.MAX_ALERTS)
         self._packets: deque[PacketInfo] = deque(maxlen=self.MAX_PACKETS)
-        self._spoofed: set[str] = set()        # set of IPs
+        self._spoofed: set[str] = set()  # set of IPs
         self._stats = Stats()
         self._bandwidth = BandwidthAggregator()
 

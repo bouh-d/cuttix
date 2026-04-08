@@ -1,4 +1,5 @@
 """MAC address → vendor name via IEEE OUI database."""
+
 from __future__ import annotations
 
 import csv
@@ -52,7 +53,7 @@ def lookup(mac: str) -> str | None:
     mac = mac.lower().replace("-", ":").replace(".", ":")
     # handle bare hex (no separators)
     if ":" not in mac and len(mac) == 12:
-        mac = ":".join(mac[i:i+2] for i in range(0, 12, 2))
+        mac = ":".join(mac[i : i + 2] for i in range(0, 12, 2))
 
     oui = ":".join(mac.split(":")[:3])
     return _oui_db.get(oui)

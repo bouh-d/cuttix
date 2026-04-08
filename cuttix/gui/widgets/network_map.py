@@ -9,22 +9,28 @@ sorted MAC so the layout doesn't shuffle on every refresh.
 This is intentionally a from-scratch QGraphicsScene rather than a
 networkx/matplotlib import — keeps the dependency footprint small.
 """
+
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
-    QGraphicsEllipseItem, QGraphicsLineItem, QGraphicsScene,
-    QGraphicsSimpleTextItem, QGraphicsView, QHBoxLayout, QLabel,
-    QPushButton, QVBoxLayout, QWidget,
+    QGraphicsEllipseItem,
+    QGraphicsLineItem,
+    QGraphicsScene,
+    QGraphicsSimpleTextItem,
+    QGraphicsView,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from cuttix.gui.state import StateStore
 from cuttix.models.host import Host
-
 
 GATEWAY_RADIUS = 36
 HOST_RADIUS = 22
@@ -128,10 +134,8 @@ class NetworkMapView(QWidget):
         line.setZValue(-1)
         self._scene.addItem(line)
 
-    def _draw_node(self, pos: QPointF, host: Host, radius: int,
-                   is_gateway: bool) -> None:
-        rect = QRectF(pos.x() - radius, pos.y() - radius,
-                      radius * 2, radius * 2)
+    def _draw_node(self, pos: QPointF, host: Host, radius: int, is_gateway: bool) -> None:
+        rect = QRectF(pos.x() - radius, pos.y() - radius, radius * 2, radius * 2)
         node = QGraphicsEllipseItem(rect)
         node.setBrush(QBrush(self._color_for(host, is_gateway)))
         node.setPen(QPen(QColor("#1e1e24"), 2))
@@ -161,12 +165,14 @@ class NetworkMapView(QWidget):
         for h in hosts:
             if h.is_gateway:
                 return h
+
         # fall back to the lowest IP last octet (typical .1)
         def _last_octet(ip: str) -> int:
             try:
                 return int(ip.rsplit(".", 1)[-1])
             except ValueError:
                 return 999
+
         return min(hosts, key=lambda h: _last_octet(h.ip))
 
     @staticmethod
@@ -186,6 +192,4 @@ class NetworkMapView(QWidget):
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         if self._scene.items():
-            self._view.fitInView(
-                self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio
-            )
+            self._view.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)

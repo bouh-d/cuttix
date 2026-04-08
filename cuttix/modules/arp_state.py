@@ -3,8 +3,10 @@
 XDG-compliant path, atomic writes, integrity verification.
 This is layer 3 of the kill switch.
 """
+
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -12,8 +14,7 @@ import logging
 import os
 import sys
 import tempfile
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -36,15 +37,11 @@ def _state_dir() -> Path:
     Windows: %LOCALAPPDATA%/cuttix/
     """
     if sys.platform == "linux":
-        base = Path(os.environ.get(
-            "XDG_STATE_HOME", Path.home() / ".local" / "state"
-        ))
+        base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
     elif sys.platform == "darwin":
         base = Path.home() / "Library" / "Application Support"
     elif sys.platform == "win32":
-        base = Path(os.environ.get(
-            "LOCALAPPDATA", Path.home() / "AppData" / "Local"
-        ))
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
     else:
         base = Path.home() / ".local" / "state"
 
@@ -92,10 +89,8 @@ class ARPStateFile:
             os.replace(tmp, str(self._path))
         except Exception:
             # cleanup on failure
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
             raise
 
         logger.debug("ARP state saved (%d entries)", len(entries))
@@ -141,10 +136,8 @@ class ARPStateFile:
         return entries
 
     def remove(self) -> None:
-        try:
+        with contextlib.suppress(OSError):
             self._path.unlink(missing_ok=True)
-        except OSError:
-            pass
 
     def exists(self) -> bool:
         return self._path.exists()
@@ -152,14 +145,13 @@ class ARPStateFile:
     # -- HMAC --
 
     def _sign(self, data: str) -> str:
-        return hmac.new(
-            self._secret, data.encode(), hashlib.sha256
-        ).hexdigest()
+        return hmac.new(self._secret, data.encode(), hashlib.sha256).hexdigest()
 
     def _load_secret(self) -> bytes:
         """Reuse the audit log secret if it exists, otherwise create one."""
         # check audit secret first (same directory layout)
         from cuttix.core.audit_log import _get_data_dir
+
         secret_path = _get_data_dir() / ".audit_secret"
         if secret_path.exists():
             return secret_path.read_bytes()
@@ -171,8 +163,6 @@ class ARPStateFile:
 
         secret = os.urandom(32)
         own_secret.write_bytes(secret)
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(own_secret, 0o600)
-        except OSError:
-            pass
         return secret

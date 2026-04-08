@@ -5,19 +5,22 @@ redraws a small line chart for the selected host (or "All hosts").
 We deliberately avoid pulling in matplotlib/pyqtgraph; a hand-rolled
 QPainter draw is plenty for a 60-point series.
 """
-from __future__ import annotations
 
-from typing import Optional
+from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, QRect, Qt, QTimer
 from PyQt6.QtGui import QBrush, QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 from cuttix.gui.bandwidth import BandwidthAggregator, BandwidthPoint
 from cuttix.gui.state import StateStore
-
 
 CHART_PAD_LEFT = 56
 CHART_PAD_RIGHT = 16
@@ -32,8 +35,7 @@ class _ChartCanvas(QWidget):
         super().__init__(parent)
         self._series: list[BandwidthPoint] = []
         self.setMinimumHeight(220)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding,
-                           QSizePolicy.Policy.Expanding)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAutoFillBackground(False)
 
     def set_series(self, points: list[BandwidthPoint]) -> None:
@@ -57,8 +59,7 @@ class _ChartCanvas(QWidget):
         axis_pen = QPen(QColor("#3a3a44"), 1)
         painter.setPen(axis_pen)
         painter.drawLine(plot.left(), plot.top(), plot.left(), plot.bottom())
-        painter.drawLine(plot.left(), plot.bottom(),
-                         plot.right(), plot.bottom())
+        painter.drawLine(plot.left(), plot.bottom(), plot.right(), plot.bottom())
 
         if not self._series:
             self._draw_empty(painter, plot)
@@ -81,7 +82,10 @@ class _ChartCanvas(QWidget):
             label = BandwidthAggregator.format_rate(y_max * i / 4)
             painter.setPen(QPen(label_color))
             painter.drawText(
-                rect.left(), int(y) - 8, CHART_PAD_LEFT - 6, 16,
+                rect.left(),
+                int(y) - 8,
+                CHART_PAD_LEFT - 6,
+                16,
                 int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter),
                 label,
             )
@@ -102,7 +106,7 @@ class _ChartCanvas(QWidget):
         line_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(line_pen)
 
-        prev: Optional[QPointF] = None
+        prev: QPointF | None = None
         for i, point in enumerate(self._series):
             x = plot.left() + i * step
             y = plot.bottom() - (point.total / y_max) * plot.height()
@@ -121,21 +125,23 @@ class _ChartCanvas(QWidget):
         font = QFont()
         font.setPointSize(10)
         painter.setFont(font)
-        painter.drawText(plot, int(Qt.AlignmentFlag.AlignCenter),
-                         "No traffic captured yet.")
+        painter.drawText(plot, int(Qt.AlignmentFlag.AlignCenter), "No traffic captured yet.")
 
-    def _draw_x_label(self, painter: QPainter, plot: QRect, text: str,
-                      align_left: bool = False) -> None:
+    def _draw_x_label(
+        self, painter: QPainter, plot: QRect, text: str, align_left: bool = False
+    ) -> None:
         painter.setPen(QPen(QColor("#6c7480")))
         font = QFont()
         font.setPointSize(8)
         painter.setFont(font)
         if align_left:
-            painter.drawText(plot.left() - 4, plot.bottom() + 4, 60, 18,
-                             int(Qt.AlignmentFlag.AlignLeft), text)
+            painter.drawText(
+                plot.left() - 4, plot.bottom() + 4, 60, 18, int(Qt.AlignmentFlag.AlignLeft), text
+            )
         else:
-            painter.drawText(plot.right() - 56, plot.bottom() + 4, 60, 18,
-                             int(Qt.AlignmentFlag.AlignRight), text)
+            painter.drawText(
+                plot.right() - 56, plot.bottom() + 4, 60, 18, int(Qt.AlignmentFlag.AlignRight), text
+            )
 
     @staticmethod
     def _nice_ceiling(val: float) -> float:
@@ -143,8 +149,9 @@ class _ChartCanvas(QWidget):
         if val <= 0:
             return 1.0
         import math
+
         exponent = math.floor(math.log10(val))
-        base = 10 ** exponent
+        base = 10**exponent
         for mult in (1, 2, 5, 10):
             ceiling = mult * base
             if ceiling >= val:
@@ -157,8 +164,9 @@ class BandwidthChartView(QWidget):
 
     REFRESH_MS_DEFAULT = 1000
 
-    def __init__(self, store: StateStore, refresh_ms: int = REFRESH_MS_DEFAULT,
-                 parent: QWidget | None = None) -> None:
+    def __init__(
+        self, store: StateStore, refresh_ms: int = REFRESH_MS_DEFAULT, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._store = store
         self._selected_host: str | None = None  # None = global

@@ -6,11 +6,12 @@ Kill switch layers:
   3. HMAC-signed state file (survives kill -9)
   4. auto-restore timer    (time-based failsafe)
 """
+
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
-import os
 import signal
 import sys
 import threading
@@ -19,7 +20,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from scapy.all import ARP, Ether, send, srp, getmacbyip, get_if_hwaddr, get_if_addr  # type: ignore[import]
+from scapy.all import (  # type: ignore[import]
+    ARP,
+    get_if_addr,
+    get_if_hwaddr,
+    getmacbyip,
+    send,
+)
 
 from cuttix.core.audit_log import AuditLog
 from cuttix.core.event_bus import Event, EventBus, EventType
@@ -42,6 +49,7 @@ _RESTORE_DELAY = 0.3
 @dataclass
 class _SpoofCtx:
     """Runtime context for an active spoof."""
+
     target_ip: str
     target_mac: str
     gateway_ip: str
@@ -85,10 +93,8 @@ class ARPController:
         # layer 2: signals (only on main thread)
         if threading.current_thread() is threading.main_thread():
             for sig in (signal.SIGINT, signal.SIGTERM):
-                try:
+                with contextlib.suppress(OSError, ValueError):
                     signal.signal(sig, self._sig_handler)
-                except (OSError, ValueError):
-                    pass
 
         # layer 3: recover orphaned state from previous crash
         self._recover_orphans()
@@ -101,9 +107,7 @@ class ARPController:
 
         target_mac = self._resolve_mac(target_ip)
         if not target_mac:
-            raise HostNotFoundError(
-                f"Can't resolve MAC for {target_ip} — is the host online?"
-            )
+            raise HostNotFoundError(f"Can't resolve MAC for {target_ip} — is the host online?")
 
         # audit BEFORE action
         if self._audit:
@@ -144,15 +148,17 @@ class ARPController:
         t.start()
 
         if self._bus:
-            self._bus.publish(Event(
-                type=EventType.HOST_CUT,
-                data={
-                    "target_ip": target_ip,
-                    "target_mac": target_mac,
-                    "auto_restore_minutes": auto_restore_minutes,
-                },
-                source="arp_control",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.HOST_CUT,
+                    data={
+                        "target_ip": target_ip,
+                        "target_mac": target_mac,
+                        "auto_restore_minutes": auto_restore_minutes,
+                    },
+                    source="arp_control",
+                )
+            )
 
         logger.info("Cut %s (%s)", target_ip, target_mac)
 
@@ -178,11 +184,13 @@ class ARPController:
             )
 
         if self._bus:
-            self._bus.publish(Event(
-                type=EventType.HOST_RESTORED,
-                data={"target_ip": target_ip, "target_mac": ctx.target_mac},
-                source="arp_control",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.HOST_RESTORED,
+                    data={"target_ip": target_ip, "target_mac": ctx.target_mac},
+                    source="arp_control",
+                )
+            )
 
         logger.info("Restored %s (%s)", target_ip, ctx.target_mac)
 
@@ -207,8 +215,7 @@ class ARPController:
                     "target_mac": ctx.target_mac,
                     "started": ctx.started.isoformat(),
                     "auto_restore_at": (
-                        ctx.auto_restore_at.isoformat()
-                        if ctx.auto_restore_at else None
+                        ctx.auto_restore_at.isoformat() if ctx.auto_restore_at else None
                     ),
                 }
                 for ip, ctx in self._active.items()
@@ -225,9 +232,7 @@ class ARPController:
         while not ctx.stop.is_set():
             # layer 4: check auto-restore timer
             if ctx.auto_restore_at and datetime.now() >= ctx.auto_restore_at:
-                logger.info(
-                    "Auto-restore timer expired for %s", ctx.target_ip
-                )
+                logger.info("Auto-restore timer expired for %s", ctx.target_ip)
                 try:
                     self.restore_access(ctx.target_ip)
                 except Exception:
@@ -236,13 +241,17 @@ class ARPController:
 
             try:
                 # tell target: we are the gateway
-                send(ARP(
-                    op=2,
-                    psrc=ctx.gateway_ip,
-                    hwsrc=self._own_mac,
-                    pdst=ctx.target_ip,
-                    hwdst=ctx.target_mac,
-                ), iface=self._iface, verbose=False)
+                send(
+                    ARP(
+                        op=2,
+                        psrc=ctx.gateway_ip,
+                        hwsrc=self._own_mac,
+                        pdst=ctx.target_ip,
+                        hwdst=ctx.target_mac,
+                    ),
+                    iface=self._iface,
+                    verbose=False,
+                )
             except OSError:
                 logger.warning("Interface down, stopping spoof for %s", ctx.target_ip)
                 break
@@ -256,22 +265,30 @@ class ARPController:
         for _ in range(_RESTORE_ROUNDS):
             try:
                 # tell target the real gateway MAC
-                send(ARP(
-                    op=2,
-                    psrc=ctx.gateway_ip,
-                    hwsrc=ctx.gateway_mac,
-                    pdst=ctx.target_ip,
-                    hwdst=ctx.target_mac,
-                ), iface=self._iface, verbose=False)
+                send(
+                    ARP(
+                        op=2,
+                        psrc=ctx.gateway_ip,
+                        hwsrc=ctx.gateway_mac,
+                        pdst=ctx.target_ip,
+                        hwdst=ctx.target_mac,
+                    ),
+                    iface=self._iface,
+                    verbose=False,
+                )
 
                 # tell gateway the real target MAC
-                send(ARP(
-                    op=2,
-                    psrc=ctx.target_ip,
-                    hwsrc=ctx.target_mac,
-                    pdst=ctx.gateway_ip,
-                    hwdst=ctx.gateway_mac,
-                ), iface=self._iface, verbose=False)
+                send(
+                    ARP(
+                        op=2,
+                        psrc=ctx.target_ip,
+                        hwsrc=ctx.target_mac,
+                        pdst=ctx.gateway_ip,
+                        hwdst=ctx.gateway_mac,
+                    ),
+                    iface=self._iface,
+                    verbose=False,
+                )
             except OSError:
                 break
             time.sleep(_RESTORE_DELAY)
@@ -280,9 +297,7 @@ class ARPController:
         if target_ip == self._own_ip:
             raise SecurityError("Can't spoof yourself")
         if target_ip == self._gw_ip:
-            raise SecurityError(
-                "Spoofing the gateway would kill your own connection"
-            )
+            raise SecurityError("Spoofing the gateway would kill your own connection")
         with self._lock:
             if target_ip in self._active:
                 raise AlreadySpoofedError(f"{target_ip} already spoofed")
@@ -308,8 +323,7 @@ class ARPController:
                     gateway_mac=ctx.gateway_mac,
                     started_at=ctx.started.isoformat(),
                     auto_restore_at=(
-                        ctx.auto_restore_at.isoformat()
-                        if ctx.auto_restore_at else None
+                        ctx.auto_restore_at.isoformat() if ctx.auto_restore_at else None
                     ),
                 )
                 for ctx in self._active.values()
@@ -334,13 +348,17 @@ class ARPController:
         for entry in entries:
             for _ in range(10):  # extra rounds for reliability
                 try:
-                    send(ARP(
-                        op=2,
-                        psrc=entry.gateway_ip,
-                        hwsrc=entry.gateway_mac,
-                        pdst=entry.target_ip,
-                        hwdst=entry.target_mac,
-                    ), iface=self._iface, verbose=False)
+                    send(
+                        ARP(
+                            op=2,
+                            psrc=entry.gateway_ip,
+                            hwsrc=entry.gateway_mac,
+                            pdst=entry.target_ip,
+                            hwdst=entry.target_mac,
+                        ),
+                        iface=self._iface,
+                        verbose=False,
+                    )
                 except OSError:
                     break
                 time.sleep(0.2)

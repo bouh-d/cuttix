@@ -1,21 +1,18 @@
 """Tests for NetworkScanner — scapy calls are mocked out."""
+
 from __future__ import annotations
 
-import threading
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cuttix.core.event_bus import EventBus, Event, EventType
+from cuttix.core.event_bus import EventType
 from cuttix.core.exceptions import (
     InterfaceError,
     InvalidNetworkError,
-    PrivilegeError,
     SecurityError,
 )
-from cuttix.models.host import Host, HostStatus
-
+from cuttix.models.host import HostStatus
 
 # We need to mock scapy imports before importing the scanner module.
 # Patch at the module level where scapy symbols are used.
@@ -59,6 +56,7 @@ def scanner_patches():
 def make_scanner(scanner_patches):
     """Factory that imports and creates a scanner with all patches active."""
     from cuttix.modules.scanner import NetworkScanner
+
     return NetworkScanner
 
 
@@ -104,6 +102,7 @@ class TestScanBasic:
 class TestScanValidation:
     def test_bad_interface(self, scanner_patches):
         from cuttix.modules.scanner import NetworkScanner
+
         with pytest.raises(InterfaceError):
             NetworkScanner(interface="doesnt_exist")
 
@@ -177,9 +176,7 @@ class TestScanEvents:
         mock_arp_ctl = MagicMock()
         mock_arp_ctl.get_spoofed.return_value = {"192.168.1.10": {}}
 
-        scanner = make_scanner(
-            interface="eth0", event_bus=event_bus, arp_control=mock_arp_ctl
-        )
+        scanner = make_scanner(interface="eth0", event_bus=event_bus, arp_control=mock_arp_ctl)
         scanner.scan(network="192.168.1.0/24")
 
         # empty scan — but 192.168.1.10 is spoofed so shouldn't appear in lost

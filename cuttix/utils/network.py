@@ -1,4 +1,5 @@
 """Network utility functions — interface detection, CIDR, gateway."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,6 @@ import socket
 import struct
 import subprocess
 import sys
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +35,12 @@ def _linux_default_interface() -> str | None:
 
     # fallback: ip route
     try:
-        out = subprocess.check_output(
-            ["ip", "route", "show", "default"], text=True, timeout=5
-        )
+        out = subprocess.check_output(["ip", "route", "show", "default"], text=True, timeout=5)
         # "default via 192.168.1.1 dev eth0 ..."
-        for part in out.split():
+        for _part in out.split():
             idx = out.split().index("dev")
             return out.split()[idx + 1]
-    except Exception:
+    except Exception:  # noqa: S110 - best-effort interface detection
         pass
 
     return None
@@ -50,13 +48,11 @@ def _linux_default_interface() -> str | None:
 
 def _macos_default_interface() -> str | None:
     try:
-        out = subprocess.check_output(
-            ["route", "-n", "get", "default"], text=True, timeout=5
-        )
+        out = subprocess.check_output(["route", "-n", "get", "default"], text=True, timeout=5)
         for line in out.splitlines():
             if "interface:" in line:
                 return line.split(":")[-1].strip()
-    except Exception:
+    except Exception:  # noqa: S110 - best-effort interface detection
         pass
     return None
 
@@ -85,16 +81,17 @@ def get_gateway_ip() -> str | None:
     # fallback: ip route parsing
     try:
         out = subprocess.check_output(
-            ["ip", "route", "show", "default"] if sys.platform != "win32"
-            else ["powershell", "-Command",
-                  "(Get-NetRoute -DestinationPrefix 0.0.0.0/0).NextHop"],
-            text=True, timeout=5,
+            ["ip", "route", "show", "default"]
+            if sys.platform != "win32"
+            else ["powershell", "-Command", "(Get-NetRoute -DestinationPrefix 0.0.0.0/0).NextHop"],
+            text=True,
+            timeout=5,
         )
         # linux/mac: "default via 192.168.1.1 dev eth0"
         for word in out.split():
             if _looks_like_ip(word):
                 return word
-    except Exception:
+    except Exception:  # noqa: S110 - best-effort gateway detection
         pass
 
     return None

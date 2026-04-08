@@ -4,6 +4,7 @@ LiveCapture already has its own internal thread for the pcap loop;
 this worker just provides start/stop lifecycle + Qt signals so the
 GUI can drive it cleanly.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,11 +14,10 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 class CaptureWorker(QObject):
     started_ok = pyqtSignal()
-    stopped_ok = pyqtSignal(dict)       # final stats snapshot
+    stopped_ok = pyqtSignal(dict)  # final stats snapshot
     failed = pyqtSignal(str)
 
-    def __init__(self, capture: Any, iface: str, bpf_filter: str = "",
-                 count: int = 0) -> None:
+    def __init__(self, capture: Any, iface: str, bpf_filter: str = "", count: int = 0) -> None:
         super().__init__()
         self._cap = capture
         self._iface = iface

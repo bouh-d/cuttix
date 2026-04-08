@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -7,7 +8,7 @@ from datetime import datetime
 class PortEntry:
     port: int
     protocol: str = "tcp"  # tcp or udp
-    state: str = "open"    # open, closed, filtered
+    state: str = "open"  # open, closed, filtered
     service: str | None = None
     banner: str | None = None
     version: str | None = None

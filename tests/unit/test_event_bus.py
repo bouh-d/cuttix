@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import threading
-import time
 
-import pytest
-
-from cuttix.core.event_bus import EventBus, Event, EventType
+from cuttix.core.event_bus import Event, EventType
 
 
 class TestEventBusBasics:
@@ -94,11 +91,12 @@ class TestHandlerIsolation:
 
     def test_module_error_handler_crash_doesnt_recurse(self, event_bus):
         """If even the MODULE_ERROR handler crashes, we don't infinite loop."""
+
         def double_crash(e):
             raise RuntimeError("error handler also crashed")
 
         event_bus.subscribe(EventType.MODULE_ERROR, double_crash, "fragile")
-        event_bus.subscribe(EventType.HOST_DISCOVERED, lambda e: 1/0, "divider")
+        event_bus.subscribe(EventType.HOST_DISCOVERED, lambda e: 1 / 0, "divider")
 
         # should not raise or infinite loop
         event_bus.publish(Event(type=EventType.HOST_DISCOVERED, data={}, source="scanner"))

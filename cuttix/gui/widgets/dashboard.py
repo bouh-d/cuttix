@@ -1,12 +1,17 @@
 """Dashboard view — KPI cards summarizing network state."""
+
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget,
+    QFrame,
+    QGridLayout,
+    QLabel,
+    QVBoxLayout,
+    QWidget,
 )
 
-from cuttix.gui.state import Stats, StateStore
+from cuttix.gui.state import StateStore, Stats
 
 
 class KPICard(QFrame):

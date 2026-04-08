@@ -3,6 +3,7 @@
 Runs only when PyQt6.QtCore is importable (no display required).
 We drive the bus directly and assert store state + emitted signals.
 """
+
 from __future__ import annotations
 
 import os
@@ -127,60 +128,68 @@ class TestAlerts:
 
     def test_alert_event_updates_store(self, store: StateStore, bus: EventBus) -> None:
         rec = SignalRecorder(store.alert_raised)
-        bus.publish(Event(
-            type=EventType.ARP_SPOOF_DETECTED,
-            data=self._alert(),
-            source="ids",
-        ))
+        bus.publish(
+            Event(
+                type=EventType.ARP_SPOOF_DETECTED,
+                data=self._alert(),
+                source="ids",
+            )
+        )
         assert rec.count == 1
         assert len(store.get_alerts()) == 1
         assert store.get_stats().alert_count == 1
 
     def test_critical_alert_counted(self, store: StateStore, bus: EventBus) -> None:
-        bus.publish(Event(
-            type=EventType.ARP_SPOOF_DETECTED,
-            data=self._alert(AlertSeverity.CRITICAL),
-            source="ids",
-        ))
+        bus.publish(
+            Event(
+                type=EventType.ARP_SPOOF_DETECTED,
+                data=self._alert(AlertSeverity.CRITICAL),
+                source="ids",
+            )
+        )
         assert store.get_stats().critical_alerts == 1
 
     def test_clear_alerts_resets_counters(self, store: StateStore, bus: EventBus) -> None:
-        bus.publish(Event(
-            type=EventType.NEW_DEVICE,
-            data=self._alert(AlertSeverity.LOW),
-            source="ids",
-        ))
+        bus.publish(
+            Event(
+                type=EventType.NEW_DEVICE,
+                data=self._alert(AlertSeverity.LOW),
+                source="ids",
+            )
+        )
         store.clear_alerts()
         assert store.get_alerts() == []
         assert store.get_stats().alert_count == 0
 
     def test_alerts_ring_buffer_caps(self, store: StateStore, bus: EventBus) -> None:
-        for i in range(StateStore.MAX_ALERTS + 50):
-            bus.publish(Event(
-                type=EventType.NEW_DEVICE,
-                data=self._alert(AlertSeverity.LOW),
-                source="ids",
-            ))
+        for _i in range(StateStore.MAX_ALERTS + 50):
+            bus.publish(
+                Event(
+                    type=EventType.NEW_DEVICE,
+                    data=self._alert(AlertSeverity.LOW),
+                    source="ids",
+                )
+            )
         assert len(store.get_alerts()) == StateStore.MAX_ALERTS
 
 
 class TestSpoofTracking:
     def test_host_cut_emits_and_counts(self, store: StateStore, bus: EventBus) -> None:
         rec = SignalRecorder(store.host_cut)
-        bus.publish(Event(
-            type=EventType.HOST_CUT,
-            data={"ip": "192.168.1.50"},
-            source="arp",
-        ))
+        bus.publish(
+            Event(
+                type=EventType.HOST_CUT,
+                data={"ip": "192.168.1.50"},
+                source="arp",
+            )
+        )
         assert rec.count == 1
         assert store.is_spoofed("192.168.1.50")
         assert store.get_stats().spoofed_count == 1
 
     def test_host_restored_clears_tracking(self, store: StateStore, bus: EventBus) -> None:
-        bus.publish(Event(type=EventType.HOST_CUT,
-                          data={"ip": "10.0.0.9"}, source="arp"))
-        bus.publish(Event(type=EventType.HOST_RESTORED,
-                          data={"ip": "10.0.0.9"}, source="arp"))
+        bus.publish(Event(type=EventType.HOST_CUT, data={"ip": "10.0.0.9"}, source="arp"))
+        bus.publish(Event(type=EventType.HOST_RESTORED, data={"ip": "10.0.0.9"}, source="arp"))
         assert not store.is_spoofed("10.0.0.9")
         assert store.get_stats().spoofed_count == 0
 
@@ -201,32 +210,38 @@ class TestLifecycle:
         assert s.get_hosts() == []
 
     def test_packet_counter(self, store: StateStore, bus: EventBus) -> None:
-        from cuttix.models.packet import PacketInfo
         from datetime import datetime
+
+        from cuttix.models.packet import PacketInfo
+
         for _ in range(5):
-            bus.publish(Event(
-                type=EventType.PACKET_CAPTURED,
-                data=PacketInfo(timestamp=datetime.now()),
-                source="capture",
-            ))
+            bus.publish(
+                Event(
+                    type=EventType.PACKET_CAPTURED,
+                    data=PacketInfo(timestamp=datetime.now()),
+                    source="capture",
+                )
+            )
         assert store.get_stats().packets_total == 5
 
-    def test_packet_buffer_and_bandwidth(
-        self, store: StateStore, bus: EventBus
-    ) -> None:
-        from cuttix.models.packet import PacketInfo
+    def test_packet_buffer_and_bandwidth(self, store: StateStore, bus: EventBus) -> None:
         from datetime import datetime
-        for i in range(3):
-            bus.publish(Event(
-                type=EventType.PACKET_CAPTURED,
-                data=PacketInfo(
-                    timestamp=datetime.now(),
-                    src_ip="10.0.0.1",
-                    dst_ip="10.0.0.2",
-                    length=100,
-                ),
-                source="capture",
-            ))
+
+        from cuttix.models.packet import PacketInfo
+
+        for _i in range(3):
+            bus.publish(
+                Event(
+                    type=EventType.PACKET_CAPTURED,
+                    data=PacketInfo(
+                        timestamp=datetime.now(),
+                        src_ip="10.0.0.1",
+                        dst_ip="10.0.0.2",
+                        length=100,
+                    ),
+                    source="capture",
+                )
+            )
         recent = store.get_recent_packets()
         assert len(recent) == 3
         assert store.bandwidth.total_bytes("10.0.0.1") > 0

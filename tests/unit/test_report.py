@@ -1,10 +1,10 @@
 """Tests for AuditReportGenerator — CSV, JSON, PDF, vuln detection."""
+
 from __future__ import annotations
 
 import csv
 import io
 import json
-from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -14,8 +14,8 @@ from cuttix.models.alert import Alert, AlertSeverity, AlertType
 from cuttix.models.host import Host
 from cuttix.models.scan_result import PortEntry
 from cuttix.modules.report import (
-    AuditReportGenerator,
     DANGEROUS_PORTS,
+    AuditReportGenerator,
     _port_severity,
 )
 
@@ -30,10 +30,21 @@ def db(tmp_path: Path) -> Database:
 
 @pytest.fixture
 def populated_db(db: Database) -> Database:
-    h1 = Host(ip="192.168.1.10", mac="aa:bb:cc:00:00:01", vendor="Acme",
-              hostname="pc-alice", os_guess="Linux")
-    h2 = Host(ip="192.168.1.11", mac="aa:bb:cc:00:00:02", vendor="Beta",
-              hostname="pc-bob", os_guess="Windows", is_gateway=False)
+    h1 = Host(
+        ip="192.168.1.10",
+        mac="aa:bb:cc:00:00:01",
+        vendor="Acme",
+        hostname="pc-alice",
+        os_guess="Linux",
+    )
+    h2 = Host(
+        ip="192.168.1.11",
+        mac="aa:bb:cc:00:00:02",
+        vendor="Beta",
+        hostname="pc-bob",
+        os_guess="Windows",
+        is_gateway=False,
+    )
     db.upsert_host(h1)
     db.upsert_host(h2)
 
@@ -43,18 +54,22 @@ def populated_db(db: Database) -> Database:
     db.upsert_port(h2.mac, PortEntry(port=3389, state="open", service="rdp"))
     db.upsert_port(h2.mac, PortEntry(port=8080, state="closed", service="http-alt"))
 
-    db.insert_alert(Alert(
-        alert_type=AlertType.ARP_SPOOF,
-        severity=AlertSeverity.HIGH,
-        description="MAC changed for 192.168.1.10",
-        source_ip="192.168.1.10",
-    ))
-    db.insert_alert(Alert(
-        alert_type=AlertType.NEW_DEVICE,
-        severity=AlertSeverity.LOW,
-        description="new device seen",
-        source_ip="192.168.1.99",
-    ))
+    db.insert_alert(
+        Alert(
+            alert_type=AlertType.ARP_SPOOF,
+            severity=AlertSeverity.HIGH,
+            description="MAC changed for 192.168.1.10",
+            source_ip="192.168.1.10",
+        )
+    )
+    db.insert_alert(
+        Alert(
+            alert_type=AlertType.NEW_DEVICE,
+            severity=AlertSeverity.LOW,
+            description="new device seen",
+            source_ip="192.168.1.99",
+        )
+    )
     return db
 
 
@@ -137,8 +152,7 @@ class TestCSVOutput:
 
     def test_csv_write_to_file(self, populated_db: Database, tmp_path: Path) -> None:
         out_file = tmp_path / "report.csv"
-        AuditReportGenerator(populated_db).generate(
-            fmt="csv", output_path=str(out_file))
+        AuditReportGenerator(populated_db).generate(fmt="csv", output_path=str(out_file))
         assert out_file.exists()
         assert "# Network Inventory" in out_file.read_text()
 

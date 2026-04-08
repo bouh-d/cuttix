@@ -3,6 +3,7 @@
 Emits scan_done on completion, scan_failed on error. The scanner
 publishes HOST_DISCOVERED on the bus, which the StateStore picks up.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -11,12 +12,13 @@ from PyQt6.QtCore import QObject, QThread, pyqtSignal
 
 
 class ScanWorker(QObject):
-    scan_done = pyqtSignal(int)        # host_count
-    scan_failed = pyqtSignal(str)      # error message
-    progress = pyqtSignal(str)         # status text
+    scan_done = pyqtSignal(int)  # host_count
+    scan_failed = pyqtSignal(str)  # error message
+    progress = pyqtSignal(str)  # status text
 
-    def __init__(self, scanner: Any, network: str | None = None,
-                 timeout: float = 2.0, retries: int = 2) -> None:
+    def __init__(
+        self, scanner: Any, network: str | None = None, timeout: float = 2.0, retries: int = 2
+    ) -> None:
         super().__init__()
         self._scanner = scanner
         self._network = network
@@ -36,8 +38,9 @@ class ScanWorker(QObject):
             self.scan_failed.emit(str(exc))
 
 
-def launch_scan(scanner: Any, network: str | None = None,
-                timeout: float = 2.0, retries: int = 2) -> tuple[QThread, ScanWorker]:
+def launch_scan(
+    scanner: Any, network: str | None = None, timeout: float = 2.0, retries: int = 2
+) -> tuple[QThread, ScanWorker]:
     """Convenience: create thread + worker, connect lifecycle, start.
 
     Caller is responsible for keeping references to both returned objects

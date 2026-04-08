@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import csv
-from pathlib import Path
-
 import pytest
 
 from cuttix.utils import mac_vendor
@@ -22,12 +19,7 @@ def _reset_cache():
 def mini_oui(tmp_path, monkeypatch):
     """Create a tiny OUI file for testing."""
     oui = tmp_path / "oui.csv"
-    oui.write_text(
-        "b8:27:eb,Raspberry Pi\n"
-        "00:50:56,VMware\n"
-        "00:0c:29,VMware\n"
-        "ac:de:48,Private\n"
-    )
+    oui.write_text("b8:27:eb,Raspberry Pi\n00:50:56,VMware\n00:0c:29,VMware\nac:de:48,Private\n")
     monkeypatch.setattr(mac_vendor, "_oui_path", lambda: oui)
     return oui
 

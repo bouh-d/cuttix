@@ -8,21 +8,27 @@ rows whose ``info``/``protocol``/``src``/``dst`` don't match.
 Throttling: incoming packets can be very high volume, so we batch
 them in a small list and flush via a QTimer at most ~10x per second.
 """
-from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional
+from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QPushButton, QSplitter, QTableWidget, QTableWidgetItem, QTextEdit,
-    QVBoxLayout, QWidget,
+    QAbstractItemView,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 from cuttix.gui.state import StateStore
 from cuttix.models.packet import PacketInfo
-
 
 COLUMNS = ["Time", "Source", "Destination", "Proto", "Length", "Info"]
 MAX_ROWS = 2000
@@ -60,19 +66,11 @@ class PacketViewerView(QWidget):
         self._table.setHorizontalHeaderLabels(COLUMNS)
         self._table.verticalHeader().setVisible(False)
         self._table.setAlternatingRowColors(True)
-        self._table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        self._table.setSelectionMode(
-            QAbstractItemView.SelectionMode.SingleSelection
-        )
-        self._table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers
-        )
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         header = self._table.horizontalHeader()
-        header.setSectionResizeMode(
-            len(COLUMNS) - 1, QHeaderView.ResizeMode.Stretch
-        )
+        header.setSectionResizeMode(len(COLUMNS) - 1, QHeaderView.ResizeMode.Stretch)
         self._table.itemSelectionChanged.connect(self._on_selection)
 
         # detail pane
@@ -213,7 +211,7 @@ class PacketViewerView(QWidget):
         snippet = data[:max_bytes]
         out: list[str] = []
         for offset in range(0, len(snippet), 16):
-            chunk = snippet[offset:offset + 16]
+            chunk = snippet[offset : offset + 16]
             hex_part = " ".join(f"{b:02x}" for b in chunk)
             ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
             out.append(f"{offset:04x}  {hex_part:<48}  {ascii_part}")

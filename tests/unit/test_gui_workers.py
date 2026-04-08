@@ -4,6 +4,7 @@ Only QtCore is required, so these run headless with the offscreen
 platform. Workers are driven synchronously — we call run()/start()/stop()
 directly on the main thread and assert emitted signals.
 """
+
 from __future__ import annotations
 
 import os
@@ -98,8 +99,9 @@ class FakeCapture:
         def snapshot(self) -> dict:
             return {"total_packets": 42, "elapsed_seconds": 3}
 
-    def __init__(self, start_raises: Exception | None = None,
-                 stop_raises: Exception | None = None) -> None:
+    def __init__(
+        self, start_raises: Exception | None = None, stop_raises: Exception | None = None
+    ) -> None:
         self.stats = self._Stats()
         self._start_raises = start_raises
         self._stop_raises = stop_raises
@@ -108,7 +110,9 @@ class FakeCapture:
 
     def start(self, interface=None, bpf_filter="", count=None) -> None:
         self.start_called_with = {
-            "interface": interface, "bpf_filter": bpf_filter, "count": count,
+            "interface": interface,
+            "bpf_filter": bpf_filter,
+            "count": count,
         }
         if self._start_raises:
             raise self._start_raises
@@ -131,7 +135,9 @@ class TestCaptureWorker:
         assert ok.count == 1
         assert failed.count == 0
         assert cap.start_called_with == {
-            "interface": "eth0", "bpf_filter": "tcp", "count": None,
+            "interface": "eth0",
+            "bpf_filter": "tcp",
+            "count": None,
         }
 
     def test_start_forwards_count(self) -> None:

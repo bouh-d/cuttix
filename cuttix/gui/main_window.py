@@ -1,37 +1,53 @@
 """Cuttix main window — sidebar nav + stacked view router + theme toggle."""
+
 from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
-    QHBoxLayout, QListWidget, QListWidgetItem, QMainWindow, QStackedWidget,
-    QStatusBar, QToolBar, QWidget,
+    QHBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QStackedWidget,
+    QStatusBar,
+    QToolBar,
+    QWidget,
 )
 
 from cuttix.gui.state import StateStore, Stats
 from cuttix.gui.themes import ThemeManager
 from cuttix.gui.widgets import (
-    AlertFeedView, BandwidthChartView, ControlPanelView, DashboardView,
-    HostTableView, NetworkMapView, PacketViewerView,
+    AlertFeedView,
+    BandwidthChartView,
+    ControlPanelView,
+    DashboardView,
+    HostTableView,
+    NetworkMapView,
+    PacketViewerView,
 )
 
 
 class MainWindow(QMainWindow):
     NAV_ITEMS = [
-        ("Dashboard",  "dashboard"),
-        ("Hosts",      "hosts"),
+        ("Dashboard", "dashboard"),
+        ("Hosts", "hosts"),
         ("Network Map", "map"),
-        ("Packets",    "packets"),
-        ("Bandwidth",  "bandwidth"),
-        ("Control",    "control"),
-        ("Alerts",     "alerts"),
+        ("Packets", "packets"),
+        ("Bandwidth", "bandwidth"),
+        ("Control", "control"),
+        ("Alerts", "alerts"),
     ]
 
-    def __init__(self, store: StateStore, arp_controller: Any,
-                 theme_manager: ThemeManager | None = None,
-                 parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        store: StateStore,
+        arp_controller: Any,
+        theme_manager: ThemeManager | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._store = store
         self._theme = theme_manager or ThemeManager()
@@ -58,8 +74,15 @@ class MainWindow(QMainWindow):
         self._bandwidth = BandwidthChartView(store)
         self._control = ControlPanelView(store, arp_controller)
         self._alerts = AlertFeedView(store)
-        for view in (self._dashboard, self._hosts, self._map, self._packets,
-                     self._bandwidth, self._control, self._alerts):
+        for view in (
+            self._dashboard,
+            self._hosts,
+            self._map,
+            self._packets,
+            self._bandwidth,
+            self._control,
+            self._alerts,
+        ):
             self._stack.addWidget(view)
 
         # root layout
@@ -111,6 +134,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_theme(self) -> None:
         from PyQt6.QtWidgets import QApplication
+
         new_theme = self._theme.toggle()
         instance = QApplication.instance()
         if instance is not None:

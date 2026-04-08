@@ -1,13 +1,13 @@
 """Tests for ARPController — all scapy calls mocked."""
+
 from __future__ import annotations
 
-import threading
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import patch
 
 import pytest
 
 from cuttix.core.audit_log import AuditLog
-from cuttix.core.event_bus import EventBus, Event, EventType
+from cuttix.core.event_bus import EventType
 from cuttix.core.exceptions import (
     AlreadySpoofedError,
     HostNotFoundError,
@@ -15,7 +15,6 @@ from cuttix.core.exceptions import (
     SecurityError,
 )
 from cuttix.modules.arp_state import ARPStateFile, SpoofEntry
-
 
 CTRL_MOD = "cuttix.modules.arp_control"
 
@@ -56,12 +55,12 @@ def make_controller(mock_scapy, state_file, audit_log, event_bus):
     from cuttix.modules.arp_control import ARPController
 
     def _make(**kwargs):
-        defaults = dict(
-            interface="eth0",
-            event_bus=event_bus,
-            audit_log=audit_log,
-            state_file=state_file,
-        )
+        defaults = {
+            "interface": "eth0",
+            "event_bus": event_bus,
+            "audit_log": audit_log,
+            "state_file": state_file,
+        }
         defaults.update(kwargs)
         return ARPController(**defaults)
 
@@ -83,6 +82,7 @@ class TestCutAccess:
 
         # give the spoof thread a moment to send at least one packet
         import time
+
         time.sleep(1.5)
 
         assert mock_scapy["send"].call_count >= 1
@@ -224,20 +224,22 @@ class TestRestoreAll:
 class TestOrphanRecovery:
     def test_recovers_orphaned_state(self, mock_scapy, state_file, audit_log, event_bus):
         """Simulate a crash: save state, create new controller, verify recovery."""
-        from cuttix.modules.arp_state import SpoofEntry
 
-        state_file.save([
-            SpoofEntry(
-                target_ip="192.168.1.50",
-                target_mac="aa:bb:cc:00:00:50",
-                gateway_ip="192.168.1.1",
-                gateway_mac="aa:bb:cc:00:00:01",
-                started_at="2025-01-01T12:00:00",
-            )
-        ])
+        state_file.save(
+            [
+                SpoofEntry(
+                    target_ip="192.168.1.50",
+                    target_mac="aa:bb:cc:00:00:50",
+                    gateway_ip="192.168.1.1",
+                    gateway_mac="aa:bb:cc:00:00:01",
+                    started_at="2025-01-01T12:00:00",
+                )
+            ]
+        )
 
         from cuttix.modules.arp_control import ARPController
-        ctl = ARPController(
+
+        ARPController(
             interface="eth0",
             event_bus=event_bus,
             audit_log=audit_log,
@@ -256,7 +258,7 @@ class TestOrphanRecovery:
 
     def test_no_crash_no_recovery(self, make_controller, state_file, mock_scapy):
         """Fresh start with no orphaned state."""
-        ctl = make_controller()
+        make_controller()
         assert not state_file.exists()
 
 

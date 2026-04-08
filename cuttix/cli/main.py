@@ -1,6 +1,8 @@
 """Cuttix CLI — entry point."""
+
 from __future__ import annotations
 
+import contextlib
 import sys
 
 import click
@@ -8,7 +10,6 @@ import click
 import cuttix
 from cuttix.config import load_config
 from cuttix.utils.logger import setup_logging
-
 
 BANNER = r"""
    ___       _   _   _
@@ -34,24 +35,36 @@ def _get_interface(ctx: click.Context) -> str:
         return iface
 
     from cuttix.utils.network import get_default_interface
+
     detected = get_default_interface()
     if detected:
         return detected
 
     from scapy.all import conf  # type: ignore[import]
+
     return conf.iface
 
 
 @click.group()
 @click.version_option(version=cuttix.__version__, prog_name="cuttix")
-@click.option("--config", "config_path", type=click.Path(exists=True), default=None,
-              help="Path to cuttix.toml config file")
-@click.option("--log-level", type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
-              default=None, help="Override log level")
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to cuttix.toml config file",
+)
+@click.option(
+    "--log-level",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
+    default=None,
+    help="Override log level",
+)
 @click.option("--interface", "-i", default=None, help="Network interface to use")
 @click.pass_context
-def cli(ctx: click.Context, config_path: str | None, log_level: str | None,
-        interface: str | None) -> None:
+def cli(
+    ctx: click.Context, config_path: str | None, log_level: str | None, interface: str | None
+) -> None:
     """Cuttix — LAN administration and audit toolkit."""
     from pathlib import Path
 
@@ -114,8 +127,9 @@ def scan(ctx: click.Context, network: str | None, timeout: float, retries: int) 
 
 @cli.command()
 @click.argument("target_ip")
-@click.option("--timeout", "-t", type=int, default=0,
-              help="Auto-restore after N minutes (0 = manual)")
+@click.option(
+    "--timeout", "-t", type=int, default=0, help="Auto-restore after N minutes (0 = manual)"
+)
 @click.pass_context
 def cut(ctx: click.Context, target_ip: str, timeout: int) -> None:
     """Cut a host's network access via ARP spoofing."""
@@ -171,6 +185,7 @@ def cut(ctx: click.Context, target_ip: str, timeout: int) -> None:
     try:
         while True:
             import time
+
             time.sleep(1)
     except KeyboardInterrupt:
         pass  # signal handler takes care of restore
@@ -212,15 +227,24 @@ def restore(ctx: click.Context, target_ip: str) -> None:
 @cli.command()
 @click.argument("target_ip")
 @click.option("--top", type=int, default=100, help="Scan top N ports")
-@click.option("--ports", "-p", "port_spec", default=None,
-              help="Port spec: 80,443 or 1-1024 or profile:web")
-@click.option("--technique", type=click.Choice(["connect", "syn"]),
-              default="connect", help="Scan technique")
+@click.option(
+    "--ports", "-p", "port_spec", default=None, help="Port spec: 80,443 or 1-1024 or profile:web"
+)
+@click.option(
+    "--technique", type=click.Choice(["connect", "syn"]), default="connect", help="Scan technique"
+)
 @click.option("--workers", "-w", type=int, default=20, help="Concurrent threads")
 @click.option("--rate", type=int, default=0, help="Max ports/sec (0 = unlimited)")
 @click.pass_context
-def ports(ctx: click.Context, target_ip: str, top: int, port_spec: str | None,
-          technique: str, workers: int, rate: int) -> None:
+def ports(
+    ctx: click.Context,
+    target_ip: str,
+    top: int,
+    port_spec: str | None,
+    technique: str,
+    workers: int,
+    rate: int,
+) -> None:
     """Scan ports on a target host."""
     from cuttix.core.event_bus import EventBus
     from cuttix.modules.port_scanner import TCPPortScanner, get_profile_ports
@@ -300,10 +324,7 @@ def capture(ctx: click.Context, bpf_filter: str, count: int) -> None:
         pkt_count[0] += 1
         src = pkt.src_ip or pkt.src_mac or "?"
         dst = pkt.dst_ip or pkt.dst_mac or "?"
-        click.echo(
-            f"{pkt.timestamp:%H:%M:%S}  {pkt.protocol:<6} "
-            f"{src} → {dst}  {pkt.info}"
-        )
+        click.echo(f"{pkt.timestamp:%H:%M:%S}  {pkt.protocol:<6} {src} → {dst}  {pkt.info}")
         if count > 0 and pkt_count[0] >= count:
             cap.stop()
 
@@ -321,6 +342,7 @@ def capture(ctx: click.Context, bpf_filter: str, count: int) -> None:
     try:
         while cap.is_running():
             import time
+
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass
@@ -341,9 +363,9 @@ def watch(ctx: click.Context, network: str | None, interval: int, duration: int)
     import signal
     import time as _time
 
-    from cuttix.core.event_bus import EventBus, Event, EventType
-    from cuttix.modules.scanner import NetworkScanner
+    from cuttix.core.event_bus import Event, EventBus, EventType
     from cuttix.modules.ids import NetworkIDS
+    from cuttix.modules.scanner import NetworkScanner
 
     cfg = ctx.obj["config"]
     iface = _get_interface(ctx)
@@ -360,27 +382,33 @@ def watch(ctx: click.Context, network: str | None, interval: int, duration: int)
     # print alerts as they come in
     def _on_alert(evt: Event) -> None:
         alert = evt.data
-        click.echo(click.style(
-            f"[{alert.severity.value.upper()}] {alert.alert_type.name}: {alert.description}",
-            fg="red" if alert.severity.value in ("high", "critical") else "yellow",
-        ))
+        click.echo(
+            click.style(
+                f"[{alert.severity.value.upper()}] {alert.alert_type.name}: {alert.description}",
+                fg="red" if alert.severity.value in ("high", "critical") else "yellow",
+            )
+        )
 
-    for et in (EventType.ARP_SPOOF_DETECTED, EventType.NEW_DEVICE,
-               EventType.ROGUE_DHCP, EventType.PORT_SCAN_DETECTED,
-               EventType.MAC_FLOODING):
+    for et in (
+        EventType.ARP_SPOOF_DETECTED,
+        EventType.NEW_DEVICE,
+        EventType.ROGUE_DHCP,
+        EventType.PORT_SCAN_DETECTED,
+        EventType.MAC_FLOODING,
+    ):
         bus.subscribe(et, _on_alert, "cli.watch")
 
     ids.start()
     click.echo(f"Watching on {scanner.interface} (interval={interval}s, Ctrl-C to stop)")
 
     stop = {"flag": False}
+
     def _stop(*_: object) -> None:
         stop["flag"] = True
+
     signal.signal(signal.SIGINT, _stop)
-    try:
+    with contextlib.suppress(AttributeError, ValueError):
         signal.signal(signal.SIGTERM, _stop)
-    except (AttributeError, ValueError):
-        pass
 
     started = _time.time()
     try:
@@ -404,10 +432,14 @@ def watch(ctx: click.Context, network: str | None, interval: int, duration: int)
 
 
 @cli.command()
-@click.option("--format", "fmt", type=click.Choice(["json", "csv", "pdf"]),
-              default="json", help="Report format")
-@click.option("-o", "--output", type=click.Path(), default=None,
-              help="Output file path")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["json", "csv", "pdf"]),
+    default="json",
+    help="Report format",
+)
+@click.option("-o", "--output", type=click.Path(), default=None, help="Output file path")
 @click.pass_context
 def report(ctx: click.Context, fmt: str, output: str | None) -> None:
     """Generate a network audit report."""
@@ -462,4 +494,3 @@ def status(ctx: click.Context) -> None:
     entries = state.load()
     if entries:
         click.echo(f"Active spoofs: {len(entries)}")
-  

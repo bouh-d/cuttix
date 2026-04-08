@@ -7,6 +7,7 @@ Subscribes to the EventBus and watches for:
   - Inbound port scan (threshold-based)
   - MAC flooding (many new MACs in short window)
 """
+
 from __future__ import annotations
 
 import json
@@ -25,7 +26,9 @@ logger = logging.getLogger(__name__)
 
 
 def _default_whitelist_path() -> Path:
-    import os, sys
+    import os
+    import sys
+
     if sys.platform == "linux":
         base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
     elif sys.platform == "darwin":
@@ -147,8 +150,13 @@ class NetworkIDS:
 
     def _active_rules(self) -> int:
         count = 0
-        for attr in ("detect_arp_spoof", "detect_new_device", "detect_rogue_dhcp",
-                      "detect_port_scan", "detect_mac_flooding"):
+        for attr in (
+            "detect_arp_spoof",
+            "detect_new_device",
+            "detect_rogue_dhcp",
+            "detect_port_scan",
+            "detect_mac_flooding",
+        ):
             if getattr(self._cfg, attr):
                 count += 1
         return count
@@ -295,8 +303,7 @@ class NetworkIDS:
                 alert_type=AlertType.PORT_SCAN,
                 severity=AlertSeverity.MEDIUM,
                 description=(
-                    f"Port scan from {src_ip}: "
-                    f"{len(unique_ports)} ports in {threshold_secs}s"
+                    f"Port scan from {src_ip}: {len(unique_ports)} ports in {threshold_secs}s"
                 ),
                 source_ip=src_ip,
                 raw_data={
@@ -319,9 +326,7 @@ class NetworkIDS:
 
         with self._lock:
             cutoff = now - self._mac_flood_window
-            self._recent_macs = [
-                (m, t) for m, t in self._recent_macs if t > cutoff
-            ]
+            self._recent_macs = [(m, t) for m, t in self._recent_macs if t > cutoff]
             self._recent_macs.append((mac, now))
 
             unique_new = {m for m, _ in self._recent_macs}
@@ -334,10 +339,7 @@ class NetworkIDS:
         alert = Alert(
             alert_type=AlertType.MAC_FLOODING,
             severity=AlertSeverity.CRITICAL,
-            description=(
-                f"MAC flooding: {len(unique_new)} new MACs "
-                f"in {self._mac_flood_window}s"
-            ),
+            description=(f"MAC flooding: {len(unique_new)} new MACs in {self._mac_flood_window}s"),
             raw_data={
                 "unique_macs": len(unique_new),
                 "window_seconds": self._mac_flood_window,
@@ -359,15 +361,18 @@ class NetworkIDS:
                 logger.debug("Failed to persist alert", exc_info=True)
 
         # publish to event bus
-        self._bus.publish(Event(
-            type=event_type,
-            data=alert,
-            source="ids",
-        ))
+        self._bus.publish(
+            Event(
+                type=event_type,
+                data=alert,
+                source="ids",
+            )
+        )
 
         logger.warning(
             "IDS ALERT [%s/%s]: %s",
-            alert.alert_type.name, alert.severity.value,
+            alert.alert_type.name,
+            alert.severity.value,
             alert.description,
         )
 
@@ -385,9 +390,7 @@ class NetworkIDS:
     def _save_whitelist(self) -> None:
         try:
             self._wl_path.parent.mkdir(parents=True, exist_ok=True)
-            self._wl_path.write_text(
-                json.dumps({"macs": sorted(self._whitelist)}, indent=2) + "\n"
-            )
+            self._wl_path.write_text(json.dumps({"macs": sorted(self._whitelist)}, indent=2) + "\n")
         except Exception:
             logger.debug("Could not save whitelist to %s", self._wl_path)
 

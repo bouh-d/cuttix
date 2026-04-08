@@ -5,13 +5,12 @@ import logging
 import os
 import sqlite3
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from cuttix.models.host import Host, HostStatus
-from cuttix.models.alert import Alert, AlertType, AlertSeverity
-from cuttix.models.scan_result import ScanResult, PortEntry
+from cuttix.models.alert import Alert
+from cuttix.models.host import Host
+from cuttix.models.scan_result import PortEntry
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +91,18 @@ class Database:
                 session_count = hosts.session_count + 1,
                 updated_at = datetime('now')
             """,
-            (host.mac, host.ip, host.vendor, host.hostname,
-             host.os_guess, host.os_confidence,
-             host.first_seen.isoformat(), host.last_seen.isoformat(),
-             int(host.is_gateway), host.notes),
+            (
+                host.mac,
+                host.ip,
+                host.vendor,
+                host.hostname,
+                host.os_guess,
+                host.os_confidence,
+                host.first_seen.isoformat(),
+                host.last_seen.isoformat(),
+                int(host.is_gateway),
+                host.notes,
+            ),
         )
         self.conn.commit()
 
@@ -125,8 +132,15 @@ class Database:
                 version = COALESCE(excluded.version, ports.version),
                 scanned_at = datetime('now')
             """,
-            (host_mac.lower(), entry.port, entry.protocol, entry.state,
-             entry.service, entry.banner, entry.version),
+            (
+                host_mac.lower(),
+                entry.port,
+                entry.protocol,
+                entry.state,
+                entry.service,
+                entry.banner,
+                entry.version,
+            ),
         )
         self.conn.commit()
 
@@ -147,12 +161,17 @@ class Database:
                                correlation_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (alert.alert_type.name, alert.severity.value,
-             alert.source_ip, alert.source_mac,
-             alert.target_ip, alert.target_mac,
-             alert.description,
-             json.dumps(alert.raw_data) if alert.raw_data else None,
-             alert.correlation_id),
+            (
+                alert.alert_type.name,
+                alert.severity.value,
+                alert.source_ip,
+                alert.source_mac,
+                alert.target_ip,
+                alert.target_mac,
+                alert.description,
+                json.dumps(alert.raw_data) if alert.raw_data else None,
+                alert.correlation_id,
+            ),
         )
         self.conn.commit()
         return cur.lastrowid  # type: ignore[return-value]
@@ -171,17 +190,13 @@ class Database:
         return [dict(r) for r in rows]
 
     def acknowledge_alert(self, alert_id: int) -> None:
-        self.conn.execute(
-            "UPDATE alerts SET acknowledged = 1 WHERE id = ?", (alert_id,)
-        )
+        self.conn.execute("UPDATE alerts SET acknowledged = 1 WHERE id = ?", (alert_id,))
         self.conn.commit()
 
     # -- config state --
 
     def get_config_value(self, key: str) -> str | None:
-        row = self.conn.execute(
-            "SELECT value FROM config_state WHERE key = ?", (key,)
-        ).fetchone()
+        row = self.conn.execute("SELECT value FROM config_state WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else None
 
     def set_config_value(self, key: str, value: str) -> None:

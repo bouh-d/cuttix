@@ -1,8 +1,6 @@
 """Tests for ARPStateFile — HMAC-signed persistence."""
-from __future__ import annotations
 
-import json
-import os
+from __future__ import annotations
 
 import pytest
 
@@ -16,13 +14,13 @@ def state_file(tmp_path):
 
 
 def _entry(**overrides) -> SpoofEntry:
-    defaults = dict(
-        target_ip="192.168.1.50",
-        target_mac="aa:bb:cc:dd:ee:ff",
-        gateway_ip="192.168.1.1",
-        gateway_mac="11:22:33:44:55:66",
-        started_at="2025-01-01T12:00:00",
-    )
+    defaults = {
+        "target_ip": "192.168.1.50",
+        "target_mac": "aa:bb:cc:dd:ee:ff",
+        "gateway_ip": "192.168.1.1",
+        "gateway_mac": "11:22:33:44:55:66",
+        "started_at": "2025-01-01T12:00:00",
+    }
     defaults.update(overrides)
     return SpoofEntry(**defaults)
 

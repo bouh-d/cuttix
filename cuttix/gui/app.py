@@ -1,14 +1,15 @@
 """GUI entry point — wires EventBus, StateStore, modules, and MainWindow."""
+
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
+from pathlib import Path
 from typing import Any
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
-
-from pathlib import Path
 
 from cuttix.config import load_config
 from cuttix.core.event_bus import EventBus
@@ -23,26 +24,31 @@ logger = logging.getLogger(__name__)
 def _build_scanner(iface: str, bus: EventBus) -> Any:
     try:
         from cuttix.modules.scanner import NetworkScanner
+
         return NetworkScanner(interface=iface, event_bus=bus)
     except Exception as exc:
         logger.warning("Scanner unavailable: %s", exc)
         from cuttix.modules import NullScanner
+
         return NullScanner()
 
 
 def _build_arp_controller(iface: str, bus: EventBus) -> Any:
     try:
         from cuttix.modules.arp_control import ARPController
+
         return ARPController(interface=iface, event_bus=bus)
     except Exception as exc:
         logger.warning("ARP controller unavailable: %s", exc)
         from cuttix.modules import NullARPController
+
         return NullARPController()
 
 
 def _build_ids(bus: EventBus, cfg: Any) -> Any:
     try:
         from cuttix.modules.ids import NetworkIDS
+
         ids = NetworkIDS(event_bus=bus, config=cfg.ids)
         ids.start()
         return ids
@@ -60,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     iface = config.interface
     if not iface or iface == "auto":
         from cuttix.utils.network import get_default_interface
+
         iface = get_default_interface() or "eth0"
 
     app = QApplication(argv)
@@ -86,15 +93,14 @@ def main(argv: list[str] | None = None) -> int:
             scanner.scan()
         except Exception as exc:
             logger.warning("Initial scan failed: %s", exc)
+
     QTimer.singleShot(500, _first_scan)
 
     exit_code = app.exec()
 
     if ids is not None:
-        try:
+        with contextlib.suppress(Exception):
             ids.stop()
-        except Exception:
-            pass
     store.disconnect_bus()
     return exit_code
 

@@ -1,4 +1,5 @@
 """Tests for the GUI ThemeManager (no Qt required)."""
+
 from __future__ import annotations
 
 import json
@@ -7,7 +8,11 @@ from pathlib import Path
 import pytest
 
 from cuttix.gui.themes import (
-    DARK_QSS, LIGHT_QSS, THEMES, ThemeManager, ThemePalette,
+    DARK_QSS,
+    LIGHT_QSS,
+    THEMES,
+    ThemeManager,
+    ThemePalette,
 )
 
 
@@ -88,8 +93,8 @@ class TestPalette:
 
     def test_light_palette_differs(self) -> None:
         d = ThemePalette.for_theme("dark")
-        l = ThemePalette.for_theme("light")
-        assert d["bg"] != l["bg"]
+        light = ThemePalette.for_theme("light")
+        assert d["bg"] != light["bg"]
 
     def test_theme_manager_palette_matches_current(self, tmp_path: Path) -> None:
         tm = ThemeManager(persist_path=tmp_path / "ui.json", initial="light")

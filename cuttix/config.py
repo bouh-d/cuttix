@@ -21,6 +21,7 @@ else:
 
 # -- default config values --
 
+
 @dataclass
 class ScannerConfig:
     interval: int = 30
@@ -80,6 +81,7 @@ class GUIConfig:
 @dataclass
 class AppConfig:
     """Top-level config, mirrors the TOML structure."""
+
     interface: str = "auto"
     log_level: str = "INFO"
     log_file: str = ""

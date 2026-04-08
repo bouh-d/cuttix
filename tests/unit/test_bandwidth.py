@@ -1,16 +1,18 @@
 """Tests for the BandwidthAggregator (pure Python, no Qt)."""
+
 from __future__ import annotations
 
 from datetime import datetime
 
 import pytest
 
-from cuttix.gui.bandwidth import BandwidthAggregator, BandwidthPoint
+from cuttix.gui.bandwidth import BandwidthAggregator
 from cuttix.models.packet import PacketInfo
 
 
-def _pkt(length: int, src: str = "10.0.0.1", dst: str = "10.0.0.2",
-         ts: datetime | None = None) -> PacketInfo:
+def _pkt(
+    length: int, src: str = "10.0.0.1", dst: str = "10.0.0.2", ts: datetime | None = None
+) -> PacketInfo:
     return PacketInfo(
         timestamp=ts or datetime.now(),
         src_ip=src,
@@ -32,8 +34,8 @@ class TestBasicAggregation:
         agg.add_packet(_pkt(500, src="10.0.0.1", dst="10.0.0.2"), now=1000)
 
         assert agg.total_bytes() == 500
-        assert agg.total_bytes("10.0.0.1") == 500   # outbound
-        assert agg.total_bytes("10.0.0.2") == 500   # inbound
+        assert agg.total_bytes("10.0.0.1") == 500  # outbound
+        assert agg.total_bytes("10.0.0.2") == 500  # inbound
 
     def test_packets_in_same_second_aggregate(self) -> None:
         agg = BandwidthAggregator()
@@ -76,7 +78,7 @@ class TestPerHost:
         agg = BandwidthAggregator()
         agg.add_packet(_pkt(100, src="10.0.0.1", dst="10.0.0.2"), now=1000)
         agg.add_packet(_pkt(200, src="10.0.0.1", dst="10.0.0.3"), now=1000)
-        agg.add_packet(_pkt(50,  src="10.0.0.4", dst="10.0.0.1"), now=1000)
+        agg.add_packet(_pkt(50, src="10.0.0.4", dst="10.0.0.1"), now=1000)
 
         assert agg.total_bytes("10.0.0.1") == 100 + 200 + 50
         assert agg.total_bytes("10.0.0.2") == 100

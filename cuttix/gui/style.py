@@ -2,8 +2,8 @@
 
 Kept in one string so it's easy to swap for a polished theme later.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 DARK_QSS = """
 * {

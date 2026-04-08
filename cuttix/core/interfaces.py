@@ -1,16 +1,20 @@
 """Module contracts. Each module exposes a Protocol so we can mock cleanly in tests."""
 
 from __future__ import annotations
-from typing import Protocol, runtime_checkable, Callable, Any
+
+from collections.abc import Callable
+from typing import Any, Protocol, runtime_checkable
+
+from cuttix.models.alert import Alert
 from cuttix.models.host import Host
 from cuttix.models.scan_result import ScanResult
-from cuttix.models.alert import Alert
 
 
 @runtime_checkable
 class Scanner(Protocol):
-    def scan(self, network: str | None = None, timeout: float = 2.0,
-             retries: int = 2) -> list[Host]: ...
+    def scan(
+        self, network: str | None = None, timeout: float = 2.0, retries: int = 2
+    ) -> list[Host]: ...
     def get_known_hosts(self) -> dict[str, Host]: ...
     @property
     def interface(self) -> str: ...
@@ -27,8 +31,9 @@ class ARPControl(Protocol):
 
 @runtime_checkable
 class PortScanner(Protocol):
-    def scan_host(self, target_ip: str, ports: list[int] | None = None,
-                  technique: str = "connect") -> ScanResult: ...
+    def scan_host(
+        self, target_ip: str, ports: list[int] | None = None, technique: str = "connect"
+    ) -> ScanResult: ...
     def scan_top_ports(self, target_ip: str, top_n: int = 100) -> ScanResult: ...
 
 

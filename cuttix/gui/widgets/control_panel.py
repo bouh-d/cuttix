@@ -1,12 +1,20 @@
 """Control panel — cut / restore hosts via ARP spoofing."""
+
 from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QMessageBox, QPushButton, QVBoxLayout,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -16,8 +24,7 @@ from cuttix.gui.state import StateStore
 class ControlPanelView(QWidget):
     """Manual ARP control UI — target input, action buttons, active list."""
 
-    def __init__(self, store: StateStore, controller: Any,
-                 parent: QWidget | None = None) -> None:
+    def __init__(self, store: StateStore, controller: Any, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._store = store
         self._ctrl = controller
@@ -124,9 +131,7 @@ class ControlPanelView(QWidget):
         box.setWindowTitle(title)
         box.setText(msg)
         box.setIcon(QMessageBox.Icon.Warning)
-        box.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel
-        )
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(QMessageBox.StandardButton.Cancel)
         return box.exec() == QMessageBox.StandardButton.Yes
 

@@ -1,6 +1,8 @@
 """TCP port scanner — Connect scan (no root) + SYN scan (root)."""
+
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import socket
@@ -11,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from cuttix.core.event_bus import Event, EventBus, EventType
-from cuttix.core.exceptions import HostNotFoundError, PrivilegeError
+from cuttix.core.exceptions import PrivilegeError
 from cuttix.models.scan_result import PortEntry, ScanResult
 
 logger = logging.getLogger(__name__)
@@ -31,8 +33,27 @@ def _load_top_ports() -> dict[str, Any]:
     except (FileNotFoundError, json.JSONDecodeError) as exc:
         logger.warning("Can't load top_ports.json: %s — using fallback", exc)
         _top_ports_cache = {
-            "top_100": [21, 22, 23, 25, 53, 80, 110, 143, 443, 445,
-                        993, 995, 1433, 3306, 3389, 5432, 5900, 8080, 8443],
+            "top_100": [
+                21,
+                22,
+                23,
+                25,
+                53,
+                80,
+                110,
+                143,
+                443,
+                445,
+                993,
+                995,
+                1433,
+                3306,
+                3389,
+                5432,
+                5900,
+                8080,
+                8443,
+            ],
             "services": {},
             "profiles": {},
         }
@@ -95,37 +116,41 @@ class TCPPortScanner:
         self._banner_grab(target_ip, result.open_ports)
 
         if self._bus:
-            self._bus.publish(Event(
-                type=EventType.PORTS_SCANNED,
-                data={
-                    "target_ip": target_ip,
-                    "open": len(result.open_ports),
-                    "total": len(ports),
-                    "technique": technique,
-                },
-                source="port_scanner",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.PORTS_SCANNED,
+                    data={
+                        "target_ip": target_ip,
+                        "open": len(result.open_ports),
+                        "total": len(ports),
+                        "technique": technique,
+                    },
+                    source="port_scanner",
+                )
+            )
 
             # emit SERVICE_FOUND for interesting services
             for p in result.open_ports:
                 if p.service:
-                    self._bus.publish(Event(
-                        type=EventType.SERVICE_FOUND,
-                        data={
-                            "target_ip": target_ip,
-                            "port": p.port,
-                            "service": p.service,
-                            "banner": p.banner,
-                        },
-                        source="port_scanner",
-                    ))
+                    self._bus.publish(
+                        Event(
+                            type=EventType.SERVICE_FOUND,
+                            data={
+                                "target_ip": target_ip,
+                                "port": p.port,
+                                "service": p.service,
+                                "banner": p.banner,
+                            },
+                            source="port_scanner",
+                        )
+                    )
 
         return result
 
     def scan_top_ports(self, target_ip: str, top_n: int = 100) -> ScanResult:
         """Scan the N most common ports."""
         all_top = _load_top_ports()["top_100"]
-        ports = all_top[:min(top_n, len(all_top))]
+        ports = all_top[: min(top_n, len(all_top))]
         return self.scan_host(target_ip, ports=ports)
 
     # -- Connect scan --
@@ -146,10 +171,8 @@ class TCPPortScanner:
         with ThreadPoolExecutor(max_workers=self._max_workers) as pool:
             futs = [pool.submit(_probe, p) for p in ports]
             for f in as_completed(futs, timeout=self._timeout * len(ports)):
-                try:
+                with contextlib.suppress(Exception):
                     f.result()
-                except Exception:
-                    pass
 
         results.sort(key=lambda e: e.port)
         return results
@@ -164,30 +187,29 @@ class TCPPortScanner:
             return "open"
         except ConnectionRefusedError:
             return "closed"
-        except (socket.timeout, OSError):
+        except (TimeoutError, OSError):
             return "filtered"
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 sock.close()
-            except OSError:
-                pass
 
     # -- SYN scan --
 
     def _syn_scan(self, ip: str, ports: list[int]) -> list[PortEntry]:
         """Half-open SYN scan via scapy. Requires root."""
         try:
-            from scapy.all import IP, TCP, sr, conf  # type: ignore[import]
+            from scapy.all import IP, TCP, conf, sr  # type: ignore[import]
         except ImportError:
             logger.warning("Scapy not available for SYN scan, falling back to connect")
             return self._connect_scan(ip, ports)
+        conf.verb = 0  # silence scapy globally for this scan
 
         results: list[PortEntry] = []
 
         # batch into chunks to avoid flooding
         chunk_size = 50
         for i in range(0, len(ports), chunk_size):
-            chunk = ports[i:i + chunk_size]
+            chunk = ports[i : i + chunk_size]
 
             try:
                 ans, unans = sr(
@@ -195,8 +217,8 @@ class TCPPortScanner:
                     timeout=self._timeout,
                     verbose=False,
                 )
-            except PermissionError:
-                raise PrivilegeError("Root required for SYN scan")
+            except PermissionError as exc:
+                raise PrivilegeError("Root required for SYN scan") from exc
             except OSError as exc:
                 logger.error("SYN scan error: %s", exc)
                 break
@@ -215,16 +237,25 @@ class TCPPortScanner:
                     state = "filtered"
 
                 svc = _service_name(port) if state == "open" else None
-                results.append(PortEntry(
-                    port=port, protocol="tcp", state=state, service=svc,
-                ))
+                results.append(
+                    PortEntry(
+                        port=port,
+                        protocol="tcp",
+                        state=state,
+                        service=svc,
+                    )
+                )
 
             # unanswered = filtered
             for port in chunk:
                 if port not in answered_ports:
-                    results.append(PortEntry(
-                        port=port, protocol="tcp", state="filtered",
-                    ))
+                    results.append(
+                        PortEntry(
+                            port=port,
+                            protocol="tcp",
+                            state="filtered",
+                        )
+                    )
 
         results.sort(key=lambda e: e.port)
         return results
@@ -248,21 +279,17 @@ class TCPPortScanner:
                         entry.banner = banner[:256]  # cap length
                         # try to extract version from banner
                         entry.version = self._parse_version(banner)
-            except (socket.timeout, OSError, ConnectionRefusedError):
+            except (TimeoutError, OSError, ConnectionRefusedError):
                 pass
             finally:
-                try:
+                with contextlib.suppress(OSError):
                     sock.close()
-                except OSError:
-                    pass
 
         with ThreadPoolExecutor(max_workers=min(10, len(entries) or 1)) as pool:
             futs = [pool.submit(_grab, e) for e in entries]
             for f in as_completed(futs, timeout=self._timeout * 2):
-                try:
+                with contextlib.suppress(Exception):
                     f.result()
-                except Exception:
-                    pass
 
     @staticmethod
     def _parse_version(banner: str) -> str | None:

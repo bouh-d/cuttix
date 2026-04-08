@@ -3,6 +3,7 @@
 All network I/O is mocked; we're testing the module wiring and
 event flow between scanner, event bus, and ARP controller.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -10,9 +11,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from cuttix.core.audit_log import AuditLog
-from cuttix.core.event_bus import EventBus, Event, EventType
+from cuttix.core.event_bus import EventType
 from cuttix.modules.arp_state import ARPStateFile
-
 
 SCANNER_MOD = "cuttix.modules.scanner"
 CTRL_MOD = "cuttix.modules.arp_control"
@@ -63,8 +63,8 @@ def patched_env(tmp_path):
 
 def test_scan_then_cut_flow(patched_env, event_bus):
     """Full flow: scan → discover hosts → cut one → verify events."""
-    from cuttix.modules.scanner import NetworkScanner
     from cuttix.modules.arp_control import ARPController
+    from cuttix.modules.scanner import NetworkScanner
 
     state = ARPStateFile(
         state_dir=patched_env["state_dir"],

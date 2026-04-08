@@ -5,6 +5,7 @@ half-styled widgets behind. The currently chosen theme is stored as
 JSON in the user's data dir so it survives across sessions, and falls
 back to the value from ``cuttix.toml`` (gui.theme) on first launch.
 """
+
 from __future__ import annotations
 
 import json
@@ -172,26 +173,26 @@ class ThemePalette:
     """Hex colors that don't belong in QSS (used by custom-painted widgets)."""
 
     DARK = {
-        "bg":            "#1e1e24",
-        "bg_alt":        "#2a2a32",
-        "fg":            "#ecf0f1",
-        "fg_muted":      "#95a5a6",
-        "accent":        "#3498db",
-        "grid":          "#3a3a44",
-        "warn":          "#f39c12",
-        "danger":        "#e74c3c",
-        "ok":            "#27ae60",
+        "bg": "#1e1e24",
+        "bg_alt": "#2a2a32",
+        "fg": "#ecf0f1",
+        "fg_muted": "#95a5a6",
+        "accent": "#3498db",
+        "grid": "#3a3a44",
+        "warn": "#f39c12",
+        "danger": "#e74c3c",
+        "ok": "#27ae60",
     }
     LIGHT = {
-        "bg":            "#f4f5f7",
-        "bg_alt":        "#ffffff",
-        "fg":            "#1c1f24",
-        "fg_muted":      "#6c7480",
-        "accent":        "#2c7be5",
-        "grid":          "#d8dce3",
-        "warn":          "#b35900",
-        "danger":        "#c0392b",
-        "ok":            "#1e7e34",
+        "bg": "#f4f5f7",
+        "bg_alt": "#ffffff",
+        "fg": "#1c1f24",
+        "fg_muted": "#6c7480",
+        "accent": "#2c7be5",
+        "grid": "#d8dce3",
+        "warn": "#b35900",
+        "danger": "#c0392b",
+        "ok": "#1e7e34",
     }
 
     @classmethod
@@ -204,8 +205,7 @@ class ThemeManager:
 
     DEFAULT = "dark"
 
-    def __init__(self, persist_path: Path | None = None,
-                 initial: str | None = None) -> None:
+    def __init__(self, persist_path: Path | None = None, initial: str | None = None) -> None:
         self._path = Path(persist_path) if persist_path else None
         loaded = self._load()
         self._current = loaded or initial or self.DEFAULT
@@ -254,8 +254,6 @@ class ThemeManager:
             return
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(
-                json.dumps({"theme": self._current}), encoding="utf-8"
-            )
+            self._path.write_text(json.dumps({"theme": self._current}), encoding="utf-8")
         except Exception as exc:
             logger.warning("Failed to persist theme preference: %s", exc)

@@ -8,25 +8,25 @@ and render them however they want.
 The aggregator does not subscribe to anything itself; the StateStore
 calls :meth:`add_packet` from its ``_on_packet_captured`` handler.
 """
+
 from __future__ import annotations
 
 import threading
 import time
 from collections import defaultdict, deque
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from cuttix.models.packet import PacketInfo
-
 
 WINDOW_SECONDS_DEFAULT = 60
 
 
 @dataclass
 class BandwidthPoint:
-    timestamp: int   # unix second
-    bytes_in: int    # received by host (dst)
-    bytes_out: int   # sent by host (src)
+    timestamp: int  # unix second
+    bytes_in: int  # received by host (dst)
+    bytes_out: int  # sent by host (src)
 
     @property
     def total(self) -> int:
@@ -86,7 +86,7 @@ class BandwidthAggregator:
 
     def known_hosts(self) -> list[str]:
         with self._lock:
-            return [k for k in self._series.keys() if k]
+            return [k for k in self._series if k]
 
     def snapshot(self, ip: str | None = None) -> list[BandwidthPoint]:
         """Return a copy of the recent series for ``ip`` (or global)."""
@@ -100,8 +100,7 @@ class BandwidthAggregator:
     def total_bytes(self, ip: str | None = None) -> int:
         return sum(p.total for p in self.snapshot(ip))
 
-    def current_rate(self, ip: str | None = None,
-                     now: float | None = None) -> float:
+    def current_rate(self, ip: str | None = None, now: float | None = None) -> float:
         """Bytes/sec averaged over the last 5 buckets up to ``now``."""
         ts = int(now if now is not None else time.time())
         with self._lock:
@@ -136,7 +135,6 @@ class BandwidthAggregator:
             return f"{bps / 1024:.1f} KB/s"
         return f"{bps / (1024 * 1024):.2f} MB/s"
 
-    def feed_many(self, packets: Iterable[PacketInfo],
-                  now: float | None = None) -> None:
+    def feed_many(self, packets: Iterable[PacketInfo], now: float | None = None) -> None:
         for p in packets:
             self.add_packet(p, now=now)

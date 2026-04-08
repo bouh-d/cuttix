@@ -1,25 +1,25 @@
 """Tests for LiveCapture and CaptureStats — backends mocked."""
+
 from __future__ import annotations
 
 import json
 import time
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from cuttix.core.event_bus import EventBus, EventType
+from cuttix.core.event_bus import EventType
 from cuttix.models.packet import PacketInfo
 from cuttix.modules.packet_capture import (
     CaptureStats,
     LiveCapture,
-    _tcp_flags,
-    _dns_type,
     _cleartext_service,
-    _mac_str,
+    _dns_type,
     _ip_str,
+    _mac_str,
+    _tcp_flags,
 )
-
 
 CAP_MOD = "cuttix.modules.packet_capture"
 
@@ -124,27 +124,27 @@ class TestLiveCaptureNoBackend:
         with (
             patch.object(cap, "_try_pypcap", return_value=False),
             patch.object(cap, "_try_tshark", return_value=False),
+            pytest.raises(RuntimeError, match="No capture backend"),
         ):
-            with pytest.raises(RuntimeError, match="No capture backend"):
-                cap.start()
+            cap.start()
 
         assert not cap.is_running()
 
 
 class TestHandlePacket:
     def _make_pkt(self, **overrides) -> PacketInfo:
-        defaults = dict(
-            timestamp=datetime.now(),
-            src_ip="192.168.1.10",
-            dst_ip="192.168.1.1",
-            src_mac="aa:bb:cc:00:00:0a",
-            dst_mac="aa:bb:cc:00:00:01",
-            src_port=54321,
-            dst_port=80,
-            protocol="TCP",
-            length=100,
-            info=":54321 → :80 [SYN]",
-        )
+        defaults = {
+            "timestamp": datetime.now(),
+            "src_ip": "192.168.1.10",
+            "dst_ip": "192.168.1.1",
+            "src_mac": "aa:bb:cc:00:00:0a",
+            "dst_mac": "aa:bb:cc:00:00:01",
+            "src_port": 54321,
+            "dst_port": 80,
+            "protocol": "TCP",
+            "length": 100,
+            "info": ":54321 → :80 [SYN]",
+        }
         defaults.update(overrides)
         return PacketInfo(**defaults)
 
@@ -215,23 +215,25 @@ class TestHandlePacket:
 class TestTsharkJsonParsing:
     def test_parse_tcp_packet(self):
         cap = LiveCapture("eth0")
-        line = json.dumps({
-            "layers": {
-                "frame": {
-                    "frame_frame_time_epoch": "1700000000.123",
-                    "frame_frame_len": "100",
-                    "frame_frame_protocols": "eth:ip:tcp",
-                },
-                "ip": {
-                    "ip_ip_src": "10.0.0.1",
-                    "ip_ip_dst": "10.0.0.2",
-                },
-                "tcp": {
-                    "tcp_tcp_srcport": "54321",
-                    "tcp_tcp_dstport": "80",
-                },
+        line = json.dumps(
+            {
+                "layers": {
+                    "frame": {
+                        "frame_frame_time_epoch": "1700000000.123",
+                        "frame_frame_len": "100",
+                        "frame_frame_protocols": "eth:ip:tcp",
+                    },
+                    "ip": {
+                        "ip_ip_src": "10.0.0.1",
+                        "ip_ip_dst": "10.0.0.2",
+                    },
+                    "tcp": {
+                        "tcp_tcp_srcport": "54321",
+                        "tcp_tcp_dstport": "80",
+                    },
+                }
             }
-        })
+        )
 
         pkt = cap._parse_tshark_json(line)
         assert pkt is not None
@@ -243,18 +245,20 @@ class TestTsharkJsonParsing:
 
     def test_parse_dns_packet(self):
         cap = LiveCapture("eth0")
-        line = json.dumps({
-            "layers": {
-                "frame": {
-                    "frame_frame_time_epoch": "1700000000",
-                    "frame_frame_len": "80",
-                    "frame_frame_protocols": "eth:ip:udp:dns",
-                },
-                "ip": {"ip_ip_src": "10.0.0.1", "ip_ip_dst": "8.8.8.8"},
-                "udp": {"udp_udp_srcport": "12345", "udp_udp_dstport": "53"},
-                "dns": {},
+        line = json.dumps(
+            {
+                "layers": {
+                    "frame": {
+                        "frame_frame_time_epoch": "1700000000",
+                        "frame_frame_len": "80",
+                        "frame_frame_protocols": "eth:ip:udp:dns",
+                    },
+                    "ip": {"ip_ip_src": "10.0.0.1", "ip_ip_dst": "8.8.8.8"},
+                    "udp": {"udp_udp_srcport": "12345", "udp_udp_dstport": "53"},
+                    "dns": {},
+                }
             }
-        })
+        )
 
         pkt = cap._parse_tshark_json(line)
         assert pkt is not None

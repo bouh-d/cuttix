@@ -3,6 +3,7 @@
 BPF filtering happens in kernel (pypcap) or in tshark, so we
 only see packets that match the filter. Parsing is done with dpkt.
 """
+
 from __future__ import annotations
 
 import json
@@ -11,8 +12,9 @@ import subprocess
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 from cuttix.core.event_bus import Event, EventBus, EventType
 from cuttix.models.packet import PacketInfo
@@ -105,9 +107,7 @@ class LiveCapture:
             return
 
         self._running = False
-        raise RuntimeError(
-            "No capture backend available — install pypcap or tshark"
-        )
+        raise RuntimeError("No capture backend available — install pypcap or tshark")
 
     def stop(self) -> None:
         if not self._running:
@@ -150,8 +150,8 @@ class LiveCapture:
 
     def _try_pypcap(self, bpf_filter: str) -> bool:
         try:
-            import pcap  # type: ignore[import]
-            import dpkt  # type: ignore[import]
+            import dpkt  # type: ignore[import]  # noqa: F401
+            import pcap  # type: ignore[import]  # noqa: F401
         except ImportError:
             logger.debug("pypcap/dpkt not available")
             return False
@@ -168,8 +168,8 @@ class LiveCapture:
         return True
 
     def _pcap_loop(self, bpf_filter: str) -> None:
-        import pcap  # type: ignore[import]
         import dpkt  # type: ignore[import]
+        import pcap  # type: ignore[import]
 
         sniffer = pcap.pcap(name=self._iface, promisc=True, immediate=True)
         if bpf_filter:
@@ -257,7 +257,7 @@ class LiveCapture:
                 qname = dns.qd[0].name
                 qtype = _dns_type(dns.qd[0].type)
                 return f"DNS {qtype} {qname}"
-        except Exception:
+        except Exception:  # noqa: S110 - malformed DNS is common; just skip
             pass
         return None
 
@@ -268,7 +268,8 @@ class LiveCapture:
         try:
             subprocess.run(
                 ["tshark", "--version"],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=5,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             logger.debug("tshark not found")
@@ -287,15 +288,22 @@ class LiveCapture:
 
     def _tshark_loop(self, bpf_filter: str) -> None:
         cmd = [
-            "tshark", "-i", self._iface, "-T", "ek",  # JSON output
+            "tshark",
+            "-i",
+            self._iface,
+            "-T",
+            "ek",  # JSON output
             "-l",  # line-buffered
         ]
         if bpf_filter:
             cmd += ["-f", bpf_filter]
 
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, bufsize=1,
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
         )
         assert proc.stdout is not None
 
@@ -395,31 +403,36 @@ class LiveCapture:
 
         # DNS query event
         if pkt.protocol == "DNS" and "DNS" in pkt.info:
-            self._bus.publish(Event(
-                type=EventType.DNS_QUERY,
-                data={
-                    "src_ip": pkt.src_ip,
-                    "query": pkt.info,
-                    "dst_port": pkt.dst_port,
-                },
-                source="capture",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.DNS_QUERY,
+                    data={
+                        "src_ip": pkt.src_ip,
+                        "query": pkt.info,
+                        "dst_port": pkt.dst_port,
+                    },
+                    source="capture",
+                )
+            )
 
         # cleartext detection
         if pkt.dst_port in (21, 23, 80, 25, 110, 143) and pkt.protocol == "TCP":
-            self._bus.publish(Event(
-                type=EventType.CLEARTEXT_DETECTED,
-                data={
-                    "src_ip": pkt.src_ip,
-                    "dst_ip": pkt.dst_ip,
-                    "port": pkt.dst_port,
-                    "service": _cleartext_service(pkt.dst_port),
-                },
-                source="capture",
-            ))
+            self._bus.publish(
+                Event(
+                    type=EventType.CLEARTEXT_DETECTED,
+                    data={
+                        "src_ip": pkt.src_ip,
+                        "dst_ip": pkt.dst_ip,
+                        "port": pkt.dst_port,
+                        "service": _cleartext_service(pkt.dst_port),
+                    },
+                    source="capture",
+                )
+            )
 
 
 # -- helpers --
+
 
 def _mac_str(raw: bytes) -> str:
     """bytes → aa:bb:cc:dd:ee:ff"""
@@ -449,10 +462,19 @@ def _tcp_flags(flags: int) -> str:
 
 
 def _dns_type(qtype: int) -> str:
-    return {1: "A", 2: "NS", 5: "CNAME", 15: "MX", 16: "TXT",
-            28: "AAAA", 33: "SRV", 255: "ANY"}.get(qtype, str(qtype))
+    return {
+        1: "A",
+        2: "NS",
+        5: "CNAME",
+        15: "MX",
+        16: "TXT",
+        28: "AAAA",
+        33: "SRV",
+        255: "ANY",
+    }.get(qtype, str(qtype))
 
 
 def _cleartext_service(port: int) -> str:
-    return {21: "FTP", 23: "Telnet", 80: "HTTP",
-            25: "SMTP", 110: "POP3", 143: "IMAP"}.get(port, str(port))
+    return {21: "FTP", 23: "Telnet", 80: "HTTP", 25: "SMTP", 110: "POP3", 143: "IMAP"}.get(
+        port, str(port)
+    )

@@ -1,20 +1,18 @@
 """Tests for TCPPortScanner — socket calls mocked."""
+
 from __future__ import annotations
 
-import socket
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cuttix.core.event_bus import EventBus, Event, EventType
-from cuttix.models.scan_result import PortEntry, ScanResult
+from cuttix.core.event_bus import EventType
 from cuttix.modules.port_scanner import (
     TCPPortScanner,
     _load_top_ports,
     _service_name,
     get_profile_ports,
 )
-
 
 PORT_MOD = "cuttix.modules.port_scanner"
 
@@ -23,6 +21,7 @@ PORT_MOD = "cuttix.modules.port_scanner"
 def _reset_cache():
     """Clear module-level cache between tests."""
     import cuttix.modules.port_scanner as mod
+
     mod._top_ports_cache = None
     yield
     mod._top_ports_cache = None
@@ -30,13 +29,16 @@ def _reset_cache():
 
 # -- helper to mock socket.connect --
 
+
 def _mock_connect(open_ports: set[int]):
     """Return a side_effect for socket.connect that opens specific ports."""
+
     def connect(addr):
         _, port = addr
         if port in open_ports:
             return  # success
         raise ConnectionRefusedError("refused")
+
     return connect
 
 
@@ -47,7 +49,7 @@ def mock_socket():
     mock_sock.settimeout = MagicMock()
     mock_sock.close = MagicMock()
 
-    with patch(f"{PORT_MOD}.socket.socket", return_value=mock_sock) as factory:
+    with patch(f"{PORT_MOD}.socket.socket", return_value=mock_sock):
         yield mock_sock
 
 
@@ -103,7 +105,7 @@ class TestConnectScan:
         assert result.ports[0].state == "closed"
 
     def test_scan_filtered_ports(self, mock_socket):
-        mock_socket.connect = MagicMock(side_effect=socket.timeout("timed out"))
+        mock_socket.connect = MagicMock(side_effect=TimeoutError("timed out"))
 
         scanner = TCPPortScanner(timeout=0.1)
         result = scanner.scan_host("192.168.1.10", ports=[80])
@@ -209,6 +211,7 @@ class TestRateLimiting:
         mock_socket.connect = MagicMock(side_effect=ConnectionRefusedError)
 
         import time
+
         scanner = TCPPortScanner(timeout=0.1, rate_limit=100)
         t0 = time.monotonic()
         scanner.scan_host("192.168.1.10", ports=[80, 443, 8080])

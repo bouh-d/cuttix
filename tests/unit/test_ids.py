@@ -1,4 +1,5 @@
 """Tests for NetworkIDS — detection rules and event handling."""
+
 from __future__ import annotations
 
 import time
@@ -9,7 +10,7 @@ import pytest
 
 from cuttix.config import IDSConfig
 from cuttix.core.event_bus import Event, EventBus, EventType
-from cuttix.models.alert import AlertType, AlertSeverity
+from cuttix.models.alert import AlertSeverity, AlertType
 from cuttix.models.host import Host
 from cuttix.models.packet import PacketInfo
 from cuttix.modules.ids import NetworkIDS
@@ -77,11 +78,13 @@ class TestARPSpoofDetection:
         assert spoof == []
 
     def test_arp_conflict_event(self, ids: NetworkIDS, bus: EventBus) -> None:
-        bus.publish(Event(
-            type=EventType.ARP_CONFLICT,
-            data={"ip": "192.168.1.5", "macs": ["aa:bb:cc:00:00:01", "aa:bb:cc:00:00:02"]},
-            source="scanner",
-        ))
+        bus.publish(
+            Event(
+                type=EventType.ARP_CONFLICT,
+                data={"ip": "192.168.1.5", "macs": ["aa:bb:cc:00:00:01", "aa:bb:cc:00:00:02"]},
+                source="scanner",
+            )
+        )
         alerts = [a for a in ids.get_alerts() if a.alert_type == AlertType.ARP_SPOOF]
         assert len(alerts) == 1
         assert alerts[0].severity == AlertSeverity.CRITICAL
@@ -109,9 +112,11 @@ class TestNewDeviceDetection:
     def test_seed_known_hosts_suppresses_alerts(self, bus: EventBus, wl_path: Path) -> None:
         cfg = IDSConfig()
         i = NetworkIDS(event_bus=bus, config=cfg, whitelist_path=wl_path)
-        i.seed_known_hosts({
-            "192.168.1.80": Host(ip="192.168.1.80", mac="aa:11:22:33:44:55"),
-        })
+        i.seed_known_hosts(
+            {
+                "192.168.1.80": Host(ip="192.168.1.80", mac="aa:11:22:33:44:55"),
+            }
+        )
         i.start()
         try:
             _publish_host(bus, _host("192.168.1.80", "aa:11:22:33:44:55"))
@@ -125,8 +130,10 @@ class TestPortScanDetection:
     def _pkt(self, src: str, dst_port: int) -> PacketInfo:
         return PacketInfo(
             timestamp=datetime.now(),
-            src_ip=src, dst_ip="192.168.1.1",
-            src_port=12345, dst_port=dst_port,
+            src_ip=src,
+            dst_ip="192.168.1.1",
+            src_port=12345,
+            dst_port=dst_port,
             protocol="TCP",
         )
 
@@ -163,9 +170,12 @@ class TestRogueDHCPDetection:
     def _dhcp_offer(self, src_ip: str, src_mac: str = "de:ad:be:ef:00:01") -> PacketInfo:
         return PacketInfo(
             timestamp=datetime.now(),
-            src_ip=src_ip, dst_ip="255.255.255.255",
-            src_mac=src_mac, dst_mac="ff:ff:ff:ff:ff:ff",
-            src_port=67, dst_port=68,
+            src_ip=src_ip,
+            dst_ip="255.255.255.255",
+            src_mac=src_mac,
+            dst_mac="ff:ff:ff:ff:ff:ff",
+            src_port=67,
+            dst_port=68,
             protocol="UDP",
         )
 
@@ -184,8 +194,10 @@ class TestRogueDHCPDetection:
     def test_non_dhcp_packet_ignored(self, ids: NetworkIDS, bus: EventBus) -> None:
         pkt = PacketInfo(
             timestamp=datetime.now(),
-            src_ip="1.2.3.4", dst_ip="5.6.7.8",
-            src_port=443, dst_port=54321,
+            src_ip="1.2.3.4",
+            dst_ip="5.6.7.8",
+            src_port=443,
+            dst_port=54321,
             protocol="TCP",
         )
         _publish_pkt(bus, pkt)

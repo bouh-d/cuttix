@@ -4,14 +4,17 @@ Each NullXxx class implements the matching Protocol interface
 but does nothing. This lets the rest of the system run even
 if a dependency is missing (e.g. no pypcap installed).
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from cuttix.models.host import Host
-from cuttix.models.scan_result import ScanResult, PortEntry
 from cuttix.models.alert import Alert
+from cuttix.models.host import Host
+from cuttix.models.scan_result import PortEntry as PortEntry  # re-export
+from cuttix.models.scan_result import ScanResult
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +27,9 @@ class NullScanner:
     def __init__(self) -> None:
         logger.warning(_WARN_TEMPLATE, "Scanner")
 
-    def scan(self, network: str | None = None, timeout: float = 2.0,
-             retries: int = 2) -> list[Host]:
+    def scan(
+        self, network: str | None = None, timeout: float = 2.0, retries: int = 2
+    ) -> list[Host]:
         return []
 
     def get_known_hosts(self) -> dict[str, Host]:
@@ -60,8 +64,9 @@ class NullPortScanner:
     def __init__(self) -> None:
         logger.warning(_WARN_TEMPLATE, "Port Scanner")
 
-    def scan_host(self, target_ip: str, ports: list[int] | None = None,
-                  technique: str = "connect") -> ScanResult:
+    def scan_host(
+        self, target_ip: str, ports: list[int] | None = None, technique: str = "connect"
+    ) -> ScanResult:
         return ScanResult(target_ip=target_ip)
 
     def scan_top_ports(self, target_ip: str, top_n: int = 100) -> ScanResult:

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
 import logging
 import os
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -90,7 +90,10 @@ class AuditLog:
 
         logger.info(
             "AUDIT: %s %s (%s) by %s",
-            action, target_ip, target_mac, operator_ip,
+            action,
+            target_ip,
+            target_mac,
+            operator_ip,
         )
 
     def verify_integrity(self) -> tuple[bool, int]:
@@ -131,10 +134,8 @@ class AuditLog:
             return self._secret_path.read_bytes()
         secret = os.urandom(32)
         self._secret_path.write_bytes(secret)
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(self._secret_path, 0o600)
-        except OSError:
-            pass
         return secret
 
     def _get_last_hmac(self) -> str:
@@ -157,7 +158,7 @@ class AuditLog:
                 last_line = f.readline().decode().rstrip("\n")
             if "|" in last_line:
                 return last_line.rsplit("|", 1)[1]
-        except Exception:
+        except Exception:  # noqa: S110 - missing/corrupt log is expected on first run
             pass
         return "0" * 64
 

@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import pytest
-
-from cuttix.db.database import Database
+from cuttix.models.alert import Alert, AlertSeverity, AlertType
 from cuttix.models.host import Host
-from cuttix.models.alert import Alert, AlertType, AlertSeverity
 from cuttix.models.scan_result import PortEntry
 
 

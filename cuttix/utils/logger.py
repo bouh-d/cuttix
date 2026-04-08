@@ -37,10 +37,12 @@ def setup_logging(level: str = "INFO", log_file: str | None = None) -> None:
 
     # console: short and readable
     console = logging.StreamHandler(sys.stderr)
-    console.setFormatter(logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    ))
+    console.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+        )
+    )
     root.addHandler(console)
 
     # file: structured JSON

@@ -3,6 +3,7 @@
 All network I/O is mocked. Verifies the event flow between Scanner,
 EventBus, NetworkIDS, Database, and AuditReportGenerator.
 """
+
 from __future__ import annotations
 
 import json
@@ -12,14 +13,12 @@ from unittest.mock import patch
 import pytest
 
 from cuttix.config import IDSConfig
-from cuttix.core.event_bus import Event, EventBus, EventType
+from cuttix.core.event_bus import EventBus
 from cuttix.db.database import Database
 from cuttix.models.alert import AlertType
-from cuttix.models.host import Host
 from cuttix.modules.ids import NetworkIDS
 from cuttix.modules.report import AuditReportGenerator
 from cuttix.modules.scanner import NetworkScanner
-
 
 SCANNER_MOD = "cuttix.modules.scanner"
 
@@ -29,6 +28,7 @@ def _fake_srp_run1(pkt, **kw):
         def __init__(self, ip, mac):
             self.psrc = ip
             self.hwsrc = mac
+
     return [
         (None, R("192.168.1.1", "aa:bb:cc:00:00:01")),
         (None, R("192.168.1.50", "aa:bb:cc:00:00:50")),
@@ -40,6 +40,7 @@ def _fake_srp_run2(pkt, **kw):
         def __init__(self, ip, mac):
             self.psrc = ip
             self.hwsrc = mac
+
     # same IP 192.168.1.50 but different MAC → ARP spoof
     return [
         (None, R("192.168.1.1", "aa:bb:cc:00:00:01")),
@@ -57,7 +58,7 @@ def scanner_env():
         patch("socket.gethostbyaddr", side_effect=OSError),
     ]
     mv = patch(f"{SCANNER_MOD}.mac_vendor")
-    started = [p.start() for p in patches]
+    [p.start() for p in patches]
     mv_mock = mv.start()
     mv_mock.lookup.return_value = "Acme"
     yield
@@ -99,9 +100,7 @@ class TestScanToIDSPipeline:
         assert macs == {"aa:bb:cc:00:00:01", "aa:bb:cc:00:00:50"}
         ids.stop()
 
-    def test_two_scans_detect_arp_spoof(
-        self, scanner_env, db: Database, tmp_path: Path
-    ) -> None:
+    def test_two_scans_detect_arp_spoof(self, scanner_env, db: Database, tmp_path: Path) -> None:
         bus = EventBus()
         ids = NetworkIDS(
             event_bus=bus,
@@ -123,9 +122,7 @@ class TestScanToIDSPipeline:
         assert spoofs[0].raw_data["new_mac"] == "de:ad:be:ef:00:01"
         ids.stop()
 
-    def test_alerts_persisted_to_db(
-        self, scanner_env, db: Database, tmp_path: Path
-    ) -> None:
+    def test_alerts_persisted_to_db(self, scanner_env, db: Database, tmp_path: Path) -> None:
         bus = EventBus()
         ids = NetworkIDS(
             event_bus=bus,
@@ -147,9 +144,7 @@ class TestScanToIDSPipeline:
 
 
 class TestScanToReport:
-    def test_report_includes_discovered_hosts(
-        self, scanner_env, db: Database
-    ) -> None:
+    def test_report_includes_discovered_hosts(self, scanner_env, db: Database) -> None:
         bus = EventBus()
         scanner = NetworkScanner(interface="eth0", event_bus=bus)
         with patch(f"{SCANNER_MOD}.srp", side_effect=_fake_srp_run1):
@@ -162,9 +157,7 @@ class TestScanToReport:
         data = json.loads(out)
         assert data["summary"]["total_hosts"] == 2
 
-    def test_report_includes_ids_alerts(
-        self, scanner_env, db: Database, tmp_path: Path
-    ) -> None:
+    def test_report_includes_ids_alerts(self, scanner_env, db: Database, tmp_path: Path) -> None:
         bus = EventBus()
         ids = NetworkIDS(
             event_bus=bus,

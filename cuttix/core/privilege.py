@@ -12,6 +12,7 @@ def is_root() -> bool:
         # windows: check admin via ctypes
         try:
             import ctypes
+
             return ctypes.windll.shell32.IsUserAnAdmin() != 0  # type: ignore[union-attr]
         except Exception:
             return False
@@ -38,6 +39,7 @@ def check_privileges(require_root: bool = True) -> str:
     # try to drop to capabilities only
     try:
         import prctl  # type: ignore[import-untyped]
+
         prctl.cap_effective.limit(prctl.CAP_NET_RAW, prctl.CAP_NET_ADMIN)
         logger.info("Dropped to CAP_NET_RAW + CAP_NET_ADMIN")
         return "capabilities"
