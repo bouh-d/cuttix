@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  wheel:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+      - name: Build
+        run: python -m build
+      - name: Check
+        run: twine check dist/*
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-wheel
+          path: dist/*
+
+  binary:
+    name: Build standalone binary (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: cuttix-linux-x86_64
+          - os: windows-latest
+            artifact: cuttix-windows-x86_64.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install libpcap headers (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Install project + release extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[all,release]'
+
+      - name: Build binary
+        run: pyinstaller scripts/cuttix.spec
+
+      - name: Rename artifact (Linux)
+        if: runner.os == 'Linux'
+        run: mv dist/cuttix dist/${{ matrix.artifact }}
+
+      - name: Rename artifact (Windows)
+        if: runner.os == 'Windows'
+        run: Rename-Item -Path dist\cuttix.exe -NewName ${{ matrix.artifact }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  publish:
+    name: Attach assets to GitHub Release
+    needs: [wheel, binary]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: List downloaded files
+        run: find artifacts -type f
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/dist-wheel/*
+            artifacts/cuttix-linux-x86_64/cuttix-linux-x86_64
+            artifacts/cuttix-windows-x86_64.exe/cuttix-windows-x86_64.exe
+          generate_release_notes: true
